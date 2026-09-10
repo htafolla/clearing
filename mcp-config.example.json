@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "clearing": {
+      "command": "node",
+      "args": ["dist/mcp/src/server.js"],
+      "env": {
+        "CLEARING_ALLOW_FAKE": "1",
+        "CLEARING_SIGNER": "fake",
+        "CLEARING_FACILITATOR": "memory"
+      }
+    }
+  }
+}

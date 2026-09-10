@@ -1,0 +1,140 @@
+export const BASE_CHAIN_ID = 8453;
+export const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
+export const USDC_DECIMALS = 6;
+export const ALWAYS_ALLOW_ORIGIN = 'api.clearing.dev';
+
+export type HexAddress = `0x${string}`;
+export type SignerKind = 'q402' | 'circle' | 'coinbase' | 'x402_fetch' | 'fake';
+export type ReceiptStatus = 'quoted' | 'submitted' | 'settled' | 'failed' | 'replayed';
+export type DiscoverCategory = 'extract' | 'api' | 'mcp';
+
+export type ClearingConfig = {
+  chainId: typeof BASE_CHAIN_ID;
+  usdc: typeof USDC_BASE;
+  payTo: HexAddress;
+  signer: SignerKind;
+  facilitator: 'memory' | 'cdp' | 'none';
+  allowFake: boolean;
+  perTxCapUsd: number;
+  sessionCapUsd: number;
+  dailyCapUsd: number;
+  confirmAboveUsd: number;
+  allowOrigins: string[];
+  extractPriceUsd: number;
+  extractPriceJsUsd: number;
+  extractBaseUrl: string;
+  extractPort: number;
+  discoverMinSettlements7d: number;
+  probeTimeoutMs: number;
+  probeIntervalMs: number;
+  cacheTtlSec: number;
+  maxChars: number;
+  fetchTimeoutMs: number;
+  dataDir: string;
+  sessionId: string;
+  soakFromAddresses: HexAddress[];
+  sessionToken?: string;
+};
+
+export type Receipt = {
+  paymentId: string;
+  txHash?: HexAddress;
+  chainId: typeof BASE_CHAIN_ID;
+  token: 'USDC';
+  amountUsd: string;
+  payTo: HexAddress;
+  origin: string;
+  resource: string;
+  status: ReceiptStatus;
+  payloadB64?: string;
+  body?: unknown;
+  sessionId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaymentRequirements = {
+  scheme: 'exact';
+  network: 'eip155:8453';
+  maxAmountRequired: string;
+  asset: typeof USDC_BASE;
+  payTo: HexAddress;
+  resource: string;
+  description: string;
+  mimeType: 'application/json';
+  maxTimeoutSeconds: number;
+  extra: { name: 'USDC'; version: '2' };
+};
+
+export type X402Quote = {
+  x402Version: 1;
+  error: string;
+  accepts: PaymentRequirements[];
+};
+
+export type SignedPayment = {
+  paymentId: string;
+  headerName: 'X-PAYMENT' | 'PAYMENT-SIGNATURE';
+  headerValue: string;
+  payloadBytes: Uint8Array;
+  nonce: string;
+  quote: PaymentRequirements;
+};
+
+export type PayloadBody = {
+  x402Version: 1;
+  paymentId: string;
+  nonce: string;
+  accepted: PaymentRequirements;
+};
+
+export type ExtractResult = {
+  url: string;
+  finalUrl: string;
+  title: string;
+  markdown: string;
+  textHash: string;
+  fetchedAt: string;
+  cacheTtlSec: number;
+  bytes: number;
+  blocked: boolean;
+  reason?: string;
+  paid?: boolean;
+  txHash?: HexAddress;
+};
+
+export type WatchlistItem = {
+  id: string;
+  origin: string;
+  url: string;
+  category: DiscoverCategory;
+  cardUrl?: string;
+  erc8004Id?: string;
+  failCount: number;
+  lastProbeAt?: string;
+  lastProbeOk?: boolean;
+  lastLatencyMs?: number;
+};
+
+export type DiscoveredService = {
+  origin: string;
+  url: string;
+  category: DiscoverCategory;
+  payTo: HexAddress;
+  asset: typeof USDC_BASE;
+  amountUsd: string;
+  settlements7d: number;
+  probeLatencyMs: number;
+  thinLiquidity: boolean;
+};
+
+export type Transfer = {
+  from: HexAddress;
+  to: HexAddress;
+  amountUsd: string;
+  at: string;
+  txHash: HexAddress;
+  tag?: 'soak' | 'external';
+};
+
+export type FetchFn = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;

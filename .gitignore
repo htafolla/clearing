@@ -1,0 +1,36 @@
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+coverage/
+*.log
+.DS_Store
+.lastmile-home/
+.grok/
+.opencode/
+.openclaw/
+logs/
+
+# --- 0xray suit (postinstall). Root AGENTS.md only — public/agents.md is the product card. ---
+.grok/
+.mcp.json
+/opencode.json
+/AGENTS.md
+/SKILLS.md
+.xray/
+.strray/
+strray/
+.hermes/
+.opencode/agents/
+.opencode/commands/
+.opencode/workflows/
+.opencode/codex.codex
+.opencode/enforcer-config.json
+.opencode/skills/
+.opencode/scripts/
+.opencode/logs/
+.opencode/validation/
+.opencode/triage/
+logs/framework/
+# --- end 0xray suit ---

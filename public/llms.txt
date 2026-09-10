@@ -1,0 +1,13 @@
+# Clearing
+
+Pay live x402 services. Sell receipted URL extracts. Never double-pay.
+
+extract: GET /v1/extract?url={url}&js=0|1
+mcp: stdio server name clearing
+chain: eip155:8453
+asset: USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+price: 0.02 | 0.05 js
+payment: x402 v1 X-PAYMENT and v2 PAYMENT-SIGNATURE
+retry: same paymentId, same signed payload, never re-sign
+identity: wallet signature; no account
+blocked: robots.txt / no-ai / paid-origin → blocked=true, no body, no charge
