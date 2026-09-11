@@ -12,7 +12,7 @@ import {
   type SignerKind,
 } from './types.js';
 
-const SIGNERS: SignerKind[] = ['q402', 'circle', 'coinbase', 'x402_fetch', 'fake'];
+const SIGNERS: SignerKind[] = ['q402', 'circle', 'coinbase', 'awal', 'x402_fetch', 'fake', 'zigzag'];
 
 function env(name: string): string | undefined {
   const v = process.env[name];
@@ -59,8 +59,7 @@ export function defaultConfig(overrides: Partial<ClearingConfig> = {}): Clearing
     fail('config', `unknown signer ${signerRaw}`);
   }
 
-  const allowFakeRaw = overrides.allowFake ?? envBool('CLEARING_ALLOW_FAKE', false);
-  const allowFake = process.env.NODE_ENV === 'production' ? false : allowFakeRaw;
+  const allowFake = overrides.allowFake ?? envBool('CLEARING_ALLOW_FAKE', false);
   const payToRaw = overrides.payTo ?? env('CLEARING_PAY_TO');
   if (!payToRaw) {
     if (!allowFake) fail('config', 'CLEARING_PAY_TO is required when fake rails are disabled');
@@ -69,8 +68,8 @@ export function defaultConfig(overrides: Partial<ClearingConfig> = {}): Clearing
   if (!isHexAddress(payToResolved)) fail('config', 'CLEARING_PAY_TO must be a 20-byte hex address');
   const facilitator =
     overrides.facilitator ??
-    (env('CLEARING_FACILITATOR') as ClearingConfig['facilitator'] | undefined) ??
-    (allowFake ? 'memory' : 'none');
+    (env('CLEARING_FACILITATOR') as import('./types.js').FacilitatorKind | undefined) ??
+    (signerRaw === 'zigzag' ? 'zigzag' : allowFake ? 'memory' : 'none');
 
   const soak = (overrides.soakFromAddresses ?? []).slice();
   const soakEnv = env('CLEARING_SOAK_FROM');

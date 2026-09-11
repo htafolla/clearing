@@ -76,6 +76,9 @@ describe('extract 402', () => {
     expect(second.paid).toBe(true);
     expect(second.paymentId).not.toBe(first.paymentId);
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(2);
+    expect(
+      ctx.settlements.transfersTo(ctx.config.payTo, '1970-01-01T00:00:00.000Z').length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it('payment payload never re-signs for the same paymentId', async () => {

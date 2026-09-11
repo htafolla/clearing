@@ -62,6 +62,22 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
   }
 
   const settle = await ctx.facilitator.settle(paymentHeader, requirements);
+  if (settle.ok) {
+    try {
+      const payload = (await import('./x402.js')).decodePayload(paymentHeader);
+      const from = payload.eip3009?.from ?? ctx.config.payTo;
+      ctx.settlements.add({
+        from,
+        to: ctx.config.payTo,
+        amountUsd: String(amountUsd),
+        at: ctx.now().toISOString(),
+        txHash: (settle.txHash ?? `0x${'00'.repeat(32)}`) as `0x${string}`,
+        tag: 'external',
+      });
+    } catch {
+      /* discover can lag one receipt */
+    }
+  }
   if (!settle.ok) {
     return new Response(JSON.stringify(buildQuote(requirements, settle.error ?? 'payment rejected')), {
       status: 402,

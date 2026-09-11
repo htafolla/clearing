@@ -1,8 +1,7 @@
 import { newPaymentId } from './bytes.js';
 import { ClearingError, fail } from './errors.js';
 import { utcDay } from './ledger.js';
-import { atomicToUsd } from './x402.js';
-import { parseQuote } from './x402.js';
+import { atomicToUsd, decodePayload, parseQuote } from './x402.js';
 import { V1_PAYMENT_HEADER } from './x402.js';
 import { assertBuyerOrigin, maxUsdGate, quoteGate, remainingCaps } from './policy.js';
 import { originOf, parseHttpUrl } from './origin.js';
@@ -136,6 +135,64 @@ export async function fetchPaid(args: FetchPaidArgs, ctx: ClearingContext): Prom
   }
 
   const paymentId = existing?.paymentId ?? args.paymentId ?? newPaymentId();
+  if (ctx.signer.payThrough) {
+    const createdAt = existing?.createdAt ?? now.toISOString();
+    const submitted: Receipt = {
+      paymentId,
+      chainId: 8453,
+      token: 'USDC',
+      amountUsd: String(quoteUsd),
+      payTo: quote.payTo,
+      origin,
+      resource: quote.resource || url,
+      status: 'submitted',
+      sessionId: ctx.config.sessionId,
+      createdAt,
+      updatedAt: now.toISOString(),
+    };
+    ctx.ledger.put(submitted);
+    try {
+      const paid = await ctx.signer.payThrough({ url, maxAtomic: quote.maxAmountRequired });
+      if (paid.status < 200 || paid.status >= 300) {
+        const failed: Receipt = { ...submitted, status: 'failed', updatedAt: ctx.now().toISOString(), body: paid.body };
+        ctx.ledger.put(failed);
+        return {
+          paid: false,
+          status: paid.status,
+          origin,
+          url,
+          paymentId,
+          amountUsd: submitted.amountUsd,
+          receipt: failed,
+          body: paid.body,
+          error: 'awal payment not accepted',
+          code: 'not_settled',
+        };
+      }
+      const settled: Receipt = {
+        ...submitted,
+        status: 'settled',
+        txHash: paid.txHash,
+        body: paid.body,
+        updatedAt: ctx.now().toISOString(),
+      };
+      ctx.ledger.put(settled);
+      return {
+        paid: true,
+        status: paid.status,
+        origin,
+        url,
+        paymentId,
+        amountUsd: settled.amountUsd,
+        txHash: settled.txHash,
+        receipt: settled,
+        body: paid.body,
+      };
+    } catch (err) {
+      if (err instanceof ClearingError) throw err;
+      fail('rail_missing', err instanceof Error ? err.message : 'awal pay failed', 503);
+    }
+  }
   let payloadB64 = existing?.payloadB64;
   if (!payloadB64) {
     const signed = await ctx.signer.sign({ paymentId, quote });
@@ -193,6 +250,23 @@ export async function fetchPaid(args: FetchPaidArgs, ctx: ClearingContext): Prom
       updatedAt: ctx.now().toISOString(),
     };
     ctx.ledger.put(settled);
+    if (settled.txHash) {
+      let from = quote.payTo;
+      try {
+        const payload = decodePayload(payloadB64);
+        if (payload.eip3009?.from) from = payload.eip3009.from;
+      } catch {
+        /* extract HTTP also records */
+      }
+      ctx.settlements.add({
+        from,
+        to: quote.payTo,
+        amountUsd: settled.amountUsd,
+        at: settled.updatedAt,
+        txHash: settled.txHash,
+        tag: 'external',
+      });
+    }
     return {
       paid: true,
       status: paidRes.status,

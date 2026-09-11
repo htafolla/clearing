@@ -3,7 +3,8 @@
  * Clearing MCP — stdio product server (repertoire form).
  * Server name is `clearing`, never `xray-clearing`.
  */
-import { resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -52,7 +53,24 @@ function jsonResult(data: unknown) {
   };
 }
 
+function loadKitEnv(): void {
+  const kit = join(dirname(fileURLToPath(import.meta.url)), '../../kit.env');
+  if (!existsSync(kit)) return;
+  for (const line of readFileSync(kit, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq);
+    const value = trimmed.slice(eq + 1);
+    if (process.env[key] === undefined || process.env[key] === '') {
+      process.env[key] = value;
+    }
+  }
+}
+
 async function main(): Promise<void> {
+  loadKitEnv();
   const allowFake = process.env.CLEARING_ALLOW_FAKE === '1';
   const ctx = createContext({ persist: true, config: { allowFake } });
   const server = createClearingServer(ctx);

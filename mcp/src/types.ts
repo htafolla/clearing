@@ -4,7 +4,8 @@ export const USDC_DECIMALS = 6;
 export const ALWAYS_ALLOW_ORIGIN = 'api.clearing.dev';
 
 export type HexAddress = `0x${string}`;
-export type SignerKind = 'q402' | 'circle' | 'coinbase' | 'x402_fetch' | 'fake';
+export type SignerKind = 'q402' | 'circle' | 'coinbase' | 'awal' | 'x402_fetch' | 'fake' | 'zigzag';
+export type FacilitatorKind = 'memory' | 'cdp' | 'none' | 'zigzag';
 export type ReceiptStatus = 'quoted' | 'submitted' | 'settled' | 'failed' | 'replayed';
 export type DiscoverCategory = 'extract' | 'api' | 'mcp';
 
@@ -13,7 +14,7 @@ export type ClearingConfig = {
   usdc: typeof USDC_BASE;
   payTo: HexAddress;
   signer: SignerKind;
-  facilitator: 'memory' | 'cdp' | 'none';
+  facilitator: FacilitatorKind;
   allowFake: boolean;
   perTxCapUsd: number;
   sessionCapUsd: number;
@@ -81,11 +82,22 @@ export type SignedPayment = {
   quote: PaymentRequirements;
 };
 
+export type Eip3009Auth = {
+  from: HexAddress;
+  to: HexAddress;
+  value: string;
+  validAfter: string;
+  validBefore: string;
+  nonce: `0x${string}`;
+  signature: `0x${string}`;
+};
+
 export type PayloadBody = {
   x402Version: 1;
   paymentId: string;
   nonce: string;
   accepted: PaymentRequirements;
+  eip3009?: Eip3009Auth;
 };
 
 export type ExtractResult = {

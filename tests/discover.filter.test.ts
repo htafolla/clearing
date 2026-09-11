@@ -39,6 +39,20 @@ describe('discover filter', () => {
     expect(rows.some((r) => r.origin.includes('ghost.example'))).toBe(false);
   });
 
+  it('does not list a live 402 origin with zero on-chain settlements', async () => {
+    const ctx = makeCtx();
+    (ctx.watchlist as MemoryWatchlist).upsert({
+      id: 'demo',
+      origin: 'https://api.clearing.dev',
+      url: 'https://api.clearing.dev/v1/extract?url=https://example.com',
+      category: 'extract',
+      cardUrl: 'https://api.clearing.dev/.well-known/agent.json',
+      failCount: 0,
+    });
+    const rows = await discover({ category: 'extract' }, ctx);
+    expect(rows).toEqual([]);
+  });
+
   it('never returns a registration-only ERC-8004 id', async () => {
     const ctx = makeCtx({
       'https://registry.example/.well-known/agent.json': {

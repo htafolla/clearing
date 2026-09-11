@@ -12,14 +12,32 @@ const quote = buildRequirements({
 });
 
 describe('signer rail', () => {
-  it('refuses fake signer when NODE_ENV=production', () => {
+  it('refuses fake signer unless allowFake is set', () => {
+    expect(() => createSigner('fake', false)).toThrow(/disabled/);
+  });
+
+  it('allows fake signer when allowFake is explicit, even in production', () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
-    expect(() => createSigner('fake', true)).toThrow(/disabled/);
+    expect(createSigner('fake', true).kind).toBe('fake');
     process.env.NODE_ENV = prev;
   });
 
+  it('zigzag kind requires a rail URL', () => {
+    const prev = process.env.CLEARING_ZIGZAG_URL;
+    delete process.env.CLEARING_ZIGZAG_URL;
+    delete process.env.CLEARING_SIGNER_URL;
+    expect(() => createSigner('zigzag', false)).toThrow(/ZIGZAG_URL/);
+    if (prev !== undefined) process.env.CLEARING_ZIGZAG_URL = prev;
+  });
+
+  it('zigzag kind uses HttpRailSigner', () => {
+    const signer = createSigner('zigzag', false, { signerUrl: 'http://127.0.0.1:8789' });
+    expect(signer.kind).toBe('zigzag');
+  });
+
   it('HttpRailSigner never re-signs the same paymentId', async () => {
+    process.env.CLEARING_RAIL_TOKEN = 'test-rail';
     let posts = 0;
     const paymentId = randomUUID();
     const payload = encodePayload({
@@ -28,8 +46,10 @@ describe('signer rail', () => {
       nonce: paymentId,
       accepted: quote,
     });
-    const fetchFn: typeof fetch = async () => {
+    const fetchFn: typeof fetch = async (_url, init) => {
       posts += 1;
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe('Bearer test-rail');
       return new Response(JSON.stringify({ headerValue: payload }), { status: 200 });
     };
     const signer = new HttpRailSigner('x402_fetch', 'http://127.0.0.1:9/sign', fetchFn);
