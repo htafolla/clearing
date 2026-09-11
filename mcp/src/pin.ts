@@ -3,6 +3,7 @@
  * Returns owner, agentURI, card JSON, sha256 of the bytes. Due diligence, not a scrape.
  */
 import { createHash } from 'node:crypto';
+import { ClearingError } from './errors.js';
 import { assertPublicExtractTarget } from './origin.js';
 import { IDENTITY_REGISTRY } from './types.js';
 import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
@@ -33,6 +34,18 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
     return json({ error: err instanceof Error ? err.message : 'agent not found', agentId }, 404);
   }
 
+  let agentURI: string;
+  let fetched: { card: unknown; sha256: string; bytes: number };
+  try {
+    agentURI = await tokenUri(ctx, registry, agentId);
+    fetched = await fetchCard(ctx, agentURI);
+  } catch (err) {
+    const msg =
+      err instanceof ClearingError ? err.message : err instanceof Error ? err.message : 'card_fetch_failed';
+    const status = err instanceof ClearingError ? err.httpStatus : 400;
+    return json({ error: msg, paid: false }, status);
+  }
+
   const resource = url.toString();
   const requirements = buildRequirements({
     amountUsd: PIN_USD,
@@ -50,8 +63,6 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
     return json({ error: settle.error ?? 'payment not settled', paid: false }, 402);
   }
 
-  const agentURI = await tokenUri(ctx, registry, agentId);
-  const fetched = await fetchCard(ctx, agentURI);
   return json({
     paid: true,
     chainId: 8453,

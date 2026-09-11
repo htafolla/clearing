@@ -72,7 +72,7 @@ describe('8004-pin', () => {
     expect(await handlePin(new Request('http://127.0.0.1/v1/extract'), ctx)).toBeUndefined();
   });
 
-  it('refuses private tokenURI before fetching the card', async () => {
+  it('refuses private tokenURI before charging', async () => {
     const ctx = createContext({
       config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: OWNER },
       fetch: async (_input, init) => {
@@ -84,17 +84,36 @@ describe('8004-pin', () => {
       },
     });
     const unpaid = await handlePin(new Request('http://127.0.0.1/v1/pin?agentId=7'), ctx);
-    const quoted = (await unpaid!.json()) as { accepts: import('../mcp/src/types.js').PaymentRequirements[] };
+    expect(unpaid?.status).toBe(400);
+    const unpaidBody = (await unpaid!.json()) as { paid: boolean; error: string };
+    expect(unpaidBody.paid).toBe(false);
+    expect(unpaidBody.error).toMatch(/private extract target/i);
+    expect(ctx.facilitator.debitCount()).toBe(0);
+
     const { encodePayload } = await import('../mcp/src/x402.js');
     const header = encodePayload({
       x402Version: 1,
       paymentId: 'pin-ssrf',
       nonce: 'pin-ssrf',
-      accepted: quoted.accepts[0]!,
+      accepted: {
+        scheme: 'exact',
+        network: 'eip155:8453',
+        maxAmountRequired: '10000',
+        asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+        payTo: OWNER,
+        resource: 'http://127.0.0.1/v1/pin?agentId=7',
+        description: 'ERC-8004 pin agentId 7',
+        mimeType: 'application/json',
+        maxTimeoutSeconds: 60,
+        extra: { name: 'USDC', version: '2' },
+      },
     });
-    await expect(
-      handlePin(new Request('http://127.0.0.1/v1/pin?agentId=7', { headers: { 'X-PAYMENT': header } }), ctx),
-    ).rejects.toMatchObject({ code: 'ssrf' });
+    const withPay = await handlePin(
+      new Request('http://127.0.0.1/v1/pin?agentId=7', { headers: { 'X-PAYMENT': header } }),
+      ctx,
+    );
+    expect(withPay?.status).toBe(400);
+    expect(ctx.facilitator.debitCount()).toBe(0);
   });
 
   it('canonical registry constant', () => {
