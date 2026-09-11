@@ -1,5 +1,6 @@
 export const BASE_CHAIN_ID = 8453;
 export const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
+export const IDENTITY_REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as const;
 export const USDC_DECIMALS = 6;
 export const ALWAYS_ALLOW_ORIGIN = 'api.clearing.dev';
 
@@ -113,6 +114,11 @@ export type ExtractResult = {
   reason?: string;
   paid?: boolean;
   txHash?: HexAddress;
+  httpStatus?: number;
+  contentType?: string;
+  bodySha256?: string;
+  bodyBytes?: number;
+  replayed?: boolean;
 };
 
 export type WatchlistItem = {

@@ -90,6 +90,7 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
   artifact.paid = true;
   if (settle.txHash) artifact.txHash = settle.txHash;
   if (!cached) ctx.cache.put(artifact);
+  artifact.replayed = settle.replayed;
   return json(artifact, 200, {
     'PAYMENT-RESPONSE': settle.txHash ?? '',
     'X-PAYMENT-RESPONSE': settle.txHash ?? '',
@@ -126,6 +127,7 @@ async function prepayPolicy(
     }
     const { title, markdown } = htmlToMarkdown(page.html, ctx.config.maxChars);
     const fetchedAt = ctx.now().toISOString();
+    const bodyBytes = Buffer.byteLength(page.html);
     const result: ExtractResult = {
       url: target.toString(),
       finalUrl: page.finalUrl,
@@ -136,6 +138,10 @@ async function prepayPolicy(
       cacheTtlSec: ctx.config.cacheTtlSec,
       bytes: Buffer.byteLength(markdown),
       blocked: false,
+      httpStatus: page.status,
+      contentType: page.headers.get('content-type') ?? '',
+      bodySha256: textHash(page.html),
+      bodyBytes,
     };
     void artifactId(result.finalUrl, result.markdown);
     return { blocked: false, page: result };
@@ -206,7 +212,14 @@ function publicText(pathname: string): string {
     return readFileSync(join(PUBLIC_DIR, file), 'utf8');
   } catch {
     if (pathname === '/llms.txt') {
-      return `# Clearing\nextract: GET /v1/extract?url={url}&js=0|1\nchain: eip155:8453\nasset: USDC\nretry: same paymentId, never re-sign\n`;
+      return `# Clearing
+extract: GET /v1/extract?url={url}&js=0|1
+witness: GET /v1/witness?url={url}
+pin: GET /v1/pin?agentId={id}
+chain: eip155:8453
+asset: USDC
+retry: same paymentId, never re-sign
+`;
     }
     return `# Clearing\nExtract: GET /v1/extract\nChain: Base 8453 USDC\nRetry: same paymentId\n`;
   }
@@ -215,9 +228,11 @@ function publicText(pathname: string): string {
 function agentCard(ctx: ClearingContext): Record<string, unknown> {
   return {
     name: 'Clearing',
-    description: 'Receipted URL extract. Pay live x402 only.',
+    description: 'Receipted URL extract + ERC-8004 pin. Pay live x402 only.',
     endpoints: {
       http: `${ctx.config.extractBaseUrl}/v1/extract`,
+      pin: `${ctx.config.extractBaseUrl}/v1/pin`,
+      witness: `${ctx.config.extractBaseUrl}/v1/witness`,
     },
     payment: {
       chainId: ctx.config.chainId,

@@ -1,6 +1,22 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { handleExtract } from './extract.js';
+import { handlePin } from './pin.js';
+import { handleWitness } from './witness.js';
 import type { ClearingContext } from './context.js';
+
+export function isExtractPath(pathname: string): boolean {
+  return (
+    pathname === '/v1/extract' ||
+    pathname.startsWith('/v1/extract') ||
+    pathname === '/v1/pin' ||
+    pathname.startsWith('/v1/pin') ||
+    pathname === '/v1/witness' ||
+    pathname.startsWith('/v1/witness') ||
+    pathname === '/agents.md' ||
+    pathname === '/llms.txt' ||
+    pathname === '/.well-known/agent.json'
+  );
+}
 
 export function createExtractHttpServer(ctx: ClearingContext) {
   return createServer((req, res) => {
@@ -8,10 +24,12 @@ export function createExtractHttpServer(ctx: ClearingContext) {
   });
 }
 
-async function dispatch(req: IncomingMessage, res: ServerResponse, ctx: ClearingContext): Promise<void> {
+export async function dispatch(req: IncomingMessage, res: ServerResponse, ctx: ClearingContext): Promise<void> {
   try {
     const request = await incomingToRequest(req, ctx.config.extractBaseUrl);
-    const response = await handleExtract(request, ctx);
+    const pin = await handlePin(request, ctx);
+    const witness = pin ? undefined : await handleWitness(request, ctx);
+    const response = pin ?? witness ?? (await handleExtract(request, ctx));
     res.statusCode = response.status;
     response.headers.forEach((value, key) => {
       res.setHeader(key, value);

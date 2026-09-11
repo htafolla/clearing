@@ -38,12 +38,24 @@ describe('extract 402', () => {
       ctx,
     );
     expect(paid.status).toBe(200);
-    const body = (await paid.json()) as { markdown: string; textHash: string; blocked: boolean; title: string; txHash: string };
+    const body = (await paid.json()) as {
+      markdown: string;
+      textHash: string;
+      blocked: boolean;
+      title: string;
+      txHash: string;
+      httpStatus?: number;
+      bodySha256?: string;
+      bodyBytes?: number;
+    };
     expect(body.blocked).toBe(false);
     expect(body.title).toBe('Example Domain');
     expect(body.markdown).toContain('Example Domain');
     expect(body.textHash).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(body.txHash).toMatch(/^0x[a-f0-9]+$/);
+    expect(body.httpStatus).toBe(200);
+    expect(body.bodySha256).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect((body.bodyBytes ?? 0) > 0).toBe(true);
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(1);
   });
 

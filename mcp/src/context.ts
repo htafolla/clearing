@@ -62,6 +62,22 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
       cardUrl: `${base}/.well-known/agent.json`,
       failCount: 0,
     });
+    watchlist.upsert({
+      id: 'self-pin',
+      origin: base,
+      url: `${base}/v1/pin?agentId=86025`,
+      category: 'api',
+      cardUrl: `${base}/.well-known/agent.json`,
+      failCount: 0,
+    });
+    watchlist.upsert({
+      id: 'self-witness',
+      origin: base,
+      url: `${base}/v1/witness?url=https://example.com/`,
+      category: 'api',
+      cardUrl: `${base}/.well-known/agent.json`,
+      failCount: 0,
+    });
   }
   const ctx: ClearingContext = {
     config,

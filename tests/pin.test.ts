@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest';
+import { createContext } from '../mcp/src/context.js';
+import { handlePin } from '../mcp/src/pin.js';
+import { IDENTITY_REGISTRY } from '../mcp/src/types.js';
+
+const OWNER = '0xd45CcF98D6db5A36E7CdD10ffae0b685BF27CE43';
+const CARD_URI = 'https://example.com/8004.json';
+
+function abiString(s: string): string {
+  const data = Buffer.from(s, 'utf8');
+  const len = data.length.toString(16).padStart(64, '0');
+  const body = data.toString('hex').padEnd(Math.ceil(data.length / 32) * 64, '0');
+  return `0x${'20'.padStart(64, '0')}${len}${body}`;
+}
+
+function ownerWord(addr: string): string {
+  return `0x${addr.slice(2).toLowerCase().padStart(64, '0')}`;
+}
+
+describe('8004-pin', () => {
+  it('402s then returns owner, uri, sha256 after fake settle', async () => {
+    const ctx = createContext({
+      config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: OWNER },
+      fetch: async (input, init) => {
+        const url = String(input);
+        if (url.includes('example.com/8004.json')) {
+          return new Response(JSON.stringify({ name: 'grok', type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1' }), {
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        const body = JSON.parse(String(init?.body ?? '{}')) as { params?: [{ data?: string }] };
+        const data = body.params?.[0]?.data ?? '';
+        if (data.startsWith('0x6352211e')) return Response.json({ result: ownerWord(OWNER) });
+        if (data.startsWith('0xc87b56dd')) return Response.json({ result: abiString(CARD_URI) });
+        return Response.json({ error: { message: 'unexpected' } }, { status: 500 });
+      },
+    });
+    const unpaid = await handlePin(new Request('http://127.0.0.1/v1/pin?agentId=86025'), ctx);
+    expect(unpaid?.status).toBe(402);
+
+    const quoted = (await unpaid!.json()) as { accepts: import('../mcp/src/types.js').PaymentRequirements[] };
+    const { encodePayload } = await import('../mcp/src/x402.js');
+    const header = encodePayload({
+      x402Version: 1,
+      paymentId: 'pin-1',
+      nonce: 'pin-1',
+      accepted: quoted.accepts[0]!,
+    });
+    const paid = await handlePin(
+      new Request('http://127.0.0.1/v1/pin?agentId=86025', { headers: { 'X-PAYMENT': header } }),
+      ctx,
+    );
+    expect(paid?.status).toBe(200);
+    const body = (await paid!.json()) as { owner: string; agentURI: string; sha256: string; card: { name: string } };
+    expect(body.owner.toLowerCase()).toBe(OWNER.toLowerCase());
+    expect(body.agentURI).toBe(CARD_URI);
+    expect(body.card.name).toBe('grok');
+    expect(body.sha256).toHaveLength(64);
+  });
+
+  it('404s unknown agent before charging', async () => {
+    const ctx = createContext({
+      config: { allowFake: true, signer: 'fake', facilitator: 'memory' },
+      fetch: async () => Response.json({ result: '0x' }),
+    });
+    const res = await handlePin(new Request('http://127.0.0.1/v1/pin?agentId=1'), ctx);
+    expect(res?.status).toBe(404);
+  });
+
+  it('ignores non-pin paths', async () => {
+    const ctx = createContext({ config: { allowFake: true } });
+    expect(await handlePin(new Request('http://127.0.0.1/v1/extract'), ctx)).toBeUndefined();
+  });
+
+  it('canonical registry constant', () => {
+    expect(IDENTITY_REGISTRY.toLowerCase()).toBe('0x8004a169fb4a3325136eb29fa0ceb6d2e539a432');
+  });
+});
