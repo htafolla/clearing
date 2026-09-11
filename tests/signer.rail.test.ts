@@ -50,12 +50,31 @@ describe('signer rail', () => {
       posts += 1;
       const headers = new Headers(init?.headers);
       expect(headers.get('authorization')).toBe('Bearer test-rail');
+      const body = JSON.parse(String(init?.body ?? '{}')) as { approved?: boolean };
+      expect(body.approved).toBe(false);
       return new Response(JSON.stringify({ headerValue: payload }), { status: 200 });
     };
     const signer = new HttpRailSigner('x402_fetch', 'http://127.0.0.1:9/sign', fetchFn);
     await signer.sign({ paymentId, quote });
     await signer.sign({ paymentId, quote });
     expect(posts).toBe(1);
+  });
+
+  it('HttpRailSigner only sets approved when the operator passed it', async () => {
+    const paymentId = randomUUID();
+    const payload = encodePayload({
+      x402Version: 1,
+      paymentId,
+      nonce: paymentId,
+      accepted: quote,
+    });
+    const fetchFn: typeof fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { approved?: boolean };
+      expect(body.approved).toBe(true);
+      return new Response(JSON.stringify({ headerValue: payload }), { status: 200 });
+    };
+    const signer = new HttpRailSigner('zigzag', 'http://127.0.0.1:9/sign', fetchFn);
+    await signer.sign({ paymentId, quote, approved: true });
   });
 
   it('named rails without a daemon fail closed', async () => {

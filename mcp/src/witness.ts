@@ -24,6 +24,14 @@ export async function handleWitness(req: Request, ctx: ClearingContext): Promise
     return json({ error: err instanceof Error ? err.message : 'bad url' }, 400);
   }
 
+  let page: { finalUrl: string; status: number; contentType: string; body: string };
+  try {
+    page = await getOnce(target.toString(), ctx);
+  } catch (err) {
+    const msg = err instanceof ClearingError ? err.message : err instanceof Error ? err.message : 'fetch_failed';
+    return json({ error: msg, paid: false }, 400);
+  }
+
   const resource = url.toString();
   const requirements = buildRequirements({
     amountUsd: WITNESS_USD,
@@ -41,24 +49,18 @@ export async function handleWitness(req: Request, ctx: ClearingContext): Promise
     return json({ error: settle.error ?? 'payment not settled', paid: false }, 402);
   }
 
-  try {
-    const page = await getOnce(target.toString(), ctx);
-    return json({
-      paid: true,
-      replayed: settle.replayed,
-      url: target.toString(),
-      finalUrl: page.finalUrl,
-      httpStatus: page.status,
-      contentType: page.contentType,
-      bodySha256: textHash(page.body),
-      bodyBytes: Buffer.byteLength(page.body),
-      fetchedAt: ctx.now().toISOString(),
-      txHash: settle.txHash,
-    });
-  } catch (err) {
-    const msg = err instanceof ClearingError ? err.message : err instanceof Error ? err.message : 'fetch_failed';
-    return json({ paid: true, replayed: settle.replayed, error: msg, txHash: settle.txHash }, 200);
-  }
+  return json({
+    paid: true,
+    replayed: settle.replayed,
+    url: target.toString(),
+    finalUrl: page.finalUrl,
+    httpStatus: page.status,
+    contentType: page.contentType,
+    bodySha256: textHash(page.body),
+    bodyBytes: Buffer.byteLength(page.body),
+    fetchedAt: ctx.now().toISOString(),
+    txHash: settle.txHash,
+  });
 }
 
 async function getOnce(

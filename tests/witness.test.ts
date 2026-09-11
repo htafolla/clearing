@@ -49,6 +49,23 @@ describe('GET witness', () => {
     expect(body.replayed).toBe(false);
   });
 
+  it('does not bill when the GET fails', async () => {
+    const ctx = createContext({
+      config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: PAY },
+      fetch: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    });
+    const res = await handleWitness(
+      new Request('http://127.0.0.1/v1/witness?url=https://example.com/down'),
+      ctx,
+    );
+    expect(res?.status).toBe(400);
+    const body = (await res!.json()) as { paid: boolean };
+    expect(body.paid).toBe(false);
+    expect(ctx.facilitator.debitCount()).toBe(0);
+  });
+
   it('same payload replays without a second debit', async () => {
     const ctx = createContext({
       config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: PAY },

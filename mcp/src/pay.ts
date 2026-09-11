@@ -195,7 +195,7 @@ export async function fetchPaid(args: FetchPaidArgs, ctx: ClearingContext): Prom
   }
   let payloadB64 = existing?.payloadB64;
   if (!payloadB64) {
-    const signed = await ctx.signer.sign({ paymentId, quote });
+    const signed = await ctx.signer.sign({ paymentId, quote, approved });
     payloadB64 = signed.headerValue;
   }
   const createdAt = existing?.createdAt ?? now.toISOString();

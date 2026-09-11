@@ -72,6 +72,31 @@ describe('8004-pin', () => {
     expect(await handlePin(new Request('http://127.0.0.1/v1/extract'), ctx)).toBeUndefined();
   });
 
+  it('refuses private tokenURI before fetching the card', async () => {
+    const ctx = createContext({
+      config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: OWNER },
+      fetch: async (_input, init) => {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { params?: [{ data?: string }] };
+        const data = body.params?.[0]?.data ?? '';
+        if (data.startsWith('0x6352211e')) return Response.json({ result: ownerWord(OWNER) });
+        if (data.startsWith('0xc87b56dd')) return Response.json({ result: abiString('http://127.0.0.1/card.json') });
+        return Response.json({ error: { message: 'no http get expected' } }, { status: 500 });
+      },
+    });
+    const unpaid = await handlePin(new Request('http://127.0.0.1/v1/pin?agentId=7'), ctx);
+    const quoted = (await unpaid!.json()) as { accepts: import('../mcp/src/types.js').PaymentRequirements[] };
+    const { encodePayload } = await import('../mcp/src/x402.js');
+    const header = encodePayload({
+      x402Version: 1,
+      paymentId: 'pin-ssrf',
+      nonce: 'pin-ssrf',
+      accepted: quoted.accepts[0]!,
+    });
+    await expect(
+      handlePin(new Request('http://127.0.0.1/v1/pin?agentId=7', { headers: { 'X-PAYMENT': header } }), ctx),
+    ).rejects.toMatchObject({ code: 'ssrf' });
+  });
+
   it('canonical registry constant', () => {
     expect(IDENTITY_REGISTRY.toLowerCase()).toBe('0x8004a169fb4a3325136eb29fa0ceb6d2e539a432');
   });

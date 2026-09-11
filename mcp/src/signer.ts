@@ -6,7 +6,7 @@ import type { PaymentRequirements, SignedPayment, SignerKind } from './types.js'
 export interface Signer {
   readonly kind: SignerKind;
   readonly addressMasked: string;
-  sign(input: { paymentId: string; quote: PaymentRequirements }): Promise<SignedPayment>;
+  sign(input: { paymentId: string; quote: PaymentRequirements; approved?: boolean }): Promise<SignedPayment>;
   /** Coinbase awal: pay the 402 URL in-process. Clearing still gated. */
   payThrough?(input: { url: string; maxAtomic: string }): Promise<{
     status: number;
@@ -24,7 +24,7 @@ export class FakeSigner implements Signer {
   private readonly payloads = new Map<string, string>();
   signCount = 0;
 
-  async sign(input: { paymentId: string; quote: PaymentRequirements }): Promise<SignedPayment> {
+  async sign(input: { paymentId: string; quote: PaymentRequirements; approved?: boolean }): Promise<SignedPayment> {
     const existing = this.payloads.get(input.paymentId);
     if (existing) return signedFromPayload(existing);
     const payload = encodePayload({
@@ -56,7 +56,7 @@ export class HttpRailSigner implements Signer {
     private readonly fetchFn: typeof fetch,
   ) {}
 
-  async sign(input: { paymentId: string; quote: PaymentRequirements }): Promise<SignedPayment> {
+  async sign(input: { paymentId: string; quote: PaymentRequirements; approved?: boolean }): Promise<SignedPayment> {
     const existing = this.payloads.get(input.paymentId);
     if (existing) return signedFromPayload(existing);
     const token = process.env.CLEARING_RAIL_TOKEN || process.env.ZIGZAG_RAIL_TOKEN;
@@ -68,7 +68,7 @@ export class HttpRailSigner implements Signer {
       body: JSON.stringify({
         paymentId: input.paymentId,
         quote: input.quote,
-        approved: true,
+        approved: input.approved === true,
       }),
     });
     if (!res.ok) fail('rail_missing', `signer daemon ${res.status}`, 503);

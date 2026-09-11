@@ -3,6 +3,7 @@
  * Returns owner, agentURI, card JSON, sha256 of the bytes. Due diligence, not a scrape.
  */
 import { createHash } from 'node:crypto';
+import { assertPublicExtractTarget } from './origin.js';
 import { IDENTITY_REGISTRY } from './types.js';
 import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
 import type { ClearingContext } from './context.js';
@@ -131,6 +132,7 @@ async function fetchCard(
   const url = agentURI.startsWith('ipfs://')
     ? `https://ipfs.io/ipfs/${agentURI.slice('ipfs://'.length)}`
     : agentURI;
+  await assertPublicExtractTarget(url, ctx.resolveHost);
   const res = await ctx.fetch(url, { signal: AbortSignal.timeout(ctx.config.fetchTimeoutMs) });
   const buf = Buffer.from(await res.arrayBuffer());
   const sha256 = createHash('sha256').update(buf).digest('hex');
