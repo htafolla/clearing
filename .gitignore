@@ -34,3 +34,26 @@ strray/
 .opencode/triage/
 logs/framework/
 # --- end 0xray suit ---
+
+# --- 0xray suit (postinstall) ---
+.grok/
+.mcp.json
+opencode.json
+AGENTS.md
+SKILLS.md
+.xray/
+.strray/
+strray/
+.hermes/
+.opencode/agents/
+.opencode/commands/
+.opencode/workflows/
+.opencode/codex.codex
+.opencode/enforcer-config.json
+.opencode/skills/
+.opencode/scripts/
+.opencode/logs/
+.opencode/validation/
+.opencode/triage/
+logs/framework/
+# --- end 0xray suit ---

@@ -17,16 +17,19 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "mcp": "tsx mcp/src/server.ts",
+    "http": "tsx mcp/src/http.ts",
+    "mcp-http": "tsx mcp/src/mcp-http.ts",
+    "start": "tsx mcp/src/mcp-http.ts",
     "extract": "tsx services/extract/worker.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "0xray": "^4.0.6",
+    "tsx": "^4.19.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }
