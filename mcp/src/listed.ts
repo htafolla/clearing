@@ -10,6 +10,9 @@ export type ListedPin = {
   paymentId: string;
   pinnedAt: string;
   tx?: HexAddress;
+  mcpUrl?: string;
+  storeUrl?: string;
+  liveAt?: string;
 };
 
 export interface ListedBoard {
@@ -31,6 +34,7 @@ export class MemoryListedBoard implements ListedBoard {
   protected push(row: ListedPin): boolean {
     if (!Number.isInteger(row.agentId) || row.agentId < 0) return false;
     if (!row.paymentId || !row.pinnedAt) return false;
+    if (!row.mcpUrl && !row.storeUrl) return false;
     if (this.rows.some((r) => r.paymentId === row.paymentId)) return false;
     const next: ListedPin = {
       agentId: row.agentId,
@@ -38,6 +42,9 @@ export class MemoryListedBoard implements ListedBoard {
       pinnedAt: row.pinnedAt,
     };
     if (row.tx) next.tx = row.tx;
+    if (row.mcpUrl) next.mcpUrl = row.mcpUrl;
+    if (row.storeUrl) next.storeUrl = row.storeUrl;
+    if (row.liveAt) next.liveAt = row.liveAt;
     this.rows.push(next);
     return true;
   }
@@ -94,13 +101,27 @@ export function publicListedRow(row: ListedPin): {
   pinnedAt: string;
   paymentId: string;
   tx?: HexAddress;
+  mcpUrl?: string;
+  storeUrl?: string;
+  liveAt?: string;
 } {
-  const out: { agentId: number; pinnedAt: string; paymentId: string; tx?: HexAddress } = {
+  const out: {
+    agentId: number;
+    pinnedAt: string;
+    paymentId: string;
+    tx?: HexAddress;
+    mcpUrl?: string;
+    storeUrl?: string;
+    liveAt?: string;
+  } = {
     agentId: row.agentId,
     pinnedAt: row.pinnedAt,
     paymentId: row.paymentId,
   };
   if (row.tx) out.tx = row.tx;
+  if (row.mcpUrl) out.mcpUrl = row.mcpUrl;
+  if (row.storeUrl) out.storeUrl = row.storeUrl;
+  if (row.liveAt) out.liveAt = row.liveAt;
   return out;
 }
 

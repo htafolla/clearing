@@ -9,6 +9,7 @@ import {
   USDC_BASE,
   type ClearingConfig,
   type HexAddress,
+  type ListedSeed,
   type SignerKind,
 } from './types.js';
 
@@ -109,26 +110,47 @@ export function defaultConfig(overrides: Partial<ClearingConfig> = {}): Clearing
   };
 }
 
-/** Blinky 86556 and friend 86666 — hosted hangar board seed when env is unset. */
-const HOSTED_LISTED_SEED = [86556, 86666];
-
-function defaultListedSeed(): number[] {
+function defaultListedSeed(): ListedSeed[] {
   const raw = env('CLEARING_LISTED_SEED');
-  if (raw !== undefined) return parseListedSeed(raw);
-  if (process.env.RAILWAY_ENVIRONMENT) return HOSTED_LISTED_SEED;
-  return [];
+  if (raw === undefined) return [];
+  return parseListedSeed(raw);
 }
 
-export function parseListedSeed(raw: string): number[] {
-  const ids: number[] = [];
+/** `86556|https://host/mcp` or `86556|mcp=https://host/mcp|store=https://host/extract`. Bare ids ignored. */
+export function parseListedSeed(raw: string): ListedSeed[] {
+  const rows: ListedSeed[] = [];
   const seen = new Set<number>();
   for (const part of raw.split(',')) {
-    const n = Number.parseInt(part.trim(), 10);
-    if (!Number.isInteger(n) || n < 0 || seen.has(n)) continue;
-    seen.add(n);
-    ids.push(n);
+    const bits = part.split('|').map((s) => s.trim()).filter(Boolean);
+    if (!bits[0]) continue;
+    const agentId = Number.parseInt(bits[0], 10);
+    if (!Number.isInteger(agentId) || agentId < 0 || seen.has(agentId)) continue;
+    const row: ListedSeed = { agentId };
+    for (const bit of bits.slice(1)) {
+      const eq = bit.indexOf('=');
+      const key = eq > 0 ? bit.slice(0, eq).toLowerCase() : guessShopKey(bit);
+      const url = eq > 0 ? bit.slice(eq + 1) : bit;
+      if (!isHttpsUrl(url)) continue;
+      if (key === 'mcp' || key === 'mcpurl') row.mcpUrl = url;
+      else row.storeUrl = url;
+    }
+    if (!row.mcpUrl && !row.storeUrl) continue;
+    seen.add(agentId);
+    rows.push(row);
   }
-  return ids;
+  return rows;
+}
+
+function guessShopKey(url: string): 'mcp' | 'store' {
+  return /\/mcp(\b|$)/i.test(url) ? 'mcp' : 'store';
+}
+
+function isHttpsUrl(raw: string): boolean {
+  try {
+    return new URL(raw).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export function maskAddress(addr: HexAddress): string {

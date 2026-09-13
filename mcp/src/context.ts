@@ -115,45 +115,22 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
   };
   if (overrides.persist) {
     hydrateSettlementsFromLedger(ctx);
-    hydrateListedFromLedger(ctx);
     seedListed(ctx);
   }
   return ctx;
 }
 
-function agentIdFromPinResource(resource: string): number | undefined {
-  try {
-    const url = new URL(resource);
-    if (url.pathname !== '/v1/pin' && !url.pathname.startsWith('/v1/pin/')) return undefined;
-    const raw = url.searchParams.get('agentId') ?? url.pathname.split('/').pop() ?? '';
-    const n = Number.parseInt(raw, 10);
-    return Number.isInteger(n) && n >= 0 ? n : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function hydrateListedFromLedger(ctx: ClearingContext): void {
-  for (const row of ctx.ledger.list()) {
-    if (row.status !== 'settled' && row.status !== 'replayed') continue;
-    const agentId = agentIdFromPinResource(row.resource);
-    if (agentId === undefined) continue;
-    ctx.listed.add({
-      agentId,
-      paymentId: row.paymentId,
-      pinnedAt: row.updatedAt,
-      ...(row.txHash ? { tx: row.txHash } : {}),
-    });
-  }
-}
-
 function seedListed(ctx: ClearingContext): void {
   const base = Date.UTC(2026, 8, 1, 0, 0, 0);
-  for (const [i, agentId] of ctx.config.listedSeed.entries()) {
+  for (const [i, seed] of ctx.config.listedSeed.entries()) {
+    if (!seed.mcpUrl && !seed.storeUrl) continue;
     ctx.listed.add({
-      agentId,
-      paymentId: `backfill:${agentId}`,
+      agentId: seed.agentId,
+      paymentId: `backfill:${seed.agentId}`,
       pinnedAt: new Date(base + i * 1000).toISOString(),
+      ...(seed.mcpUrl ? { mcpUrl: seed.mcpUrl } : {}),
+      ...(seed.storeUrl ? { storeUrl: seed.storeUrl } : {}),
+      liveAt: new Date(base + i * 1000).toISOString(),
     });
   }
 }

@@ -217,7 +217,7 @@ extract: GET /v1/extract?url={url}&js=0|1
 witness: GET /v1/witness?url={url}
 pin: GET /v1/pin?agentId={id}
 listed: GET /v1/listed
-rule: pay pin ($0.01 USDC Base) → you appear on /v1/listed. No extra directory fee.
+rule: pay pin ($0.01 USDC Base) + live HTTPS MCP or hangar store (tools / 402 / health) → listed. Identity-only cards are not listed. No extra directory fee.
 chain: eip155:8453
 asset: USDC
 retry: same paymentId, never re-sign

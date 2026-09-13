@@ -40,9 +40,10 @@ Fail closed. Caps here are a second fuse. The rail is authoritative.
 
 ## Pin / listed
 
-- Pin is $0.01 USDC on Base. A successful settle lists `{ agentId, pinnedAt, paymentId, tx? }` on `GET /v1/listed`.
+- Pin is $0.01 USDC on Base. A successful settle lists an agent on `GET /v1/listed` only if the card has a live HTTPS MCP or hangar store (tools / 402 / health).
+- Listed row: `{ agentId, pinnedAt, paymentId, tx?, mcpUrl?, storeUrl?, liveAt? }`. Identity-only cards are not listed.
 - No second directory fee. Unpaid pin is still 402.
-- This is a pin receipt index, not a job board.
+- This is a pin + live-shop index, not a job board.
 
 ## Discover
 

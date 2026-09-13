@@ -2,15 +2,17 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parseListedSeed } from '../mcp/src/config.js';
 import { createContext } from '../mcp/src/context.js';
-import { FileLedger } from '../mcp/src/ledger.js';
+import { handleExtract } from '../mcp/src/extract.js';
 import { FileListedBoard, handleListed, listedPath } from '../mcp/src/listed.js';
 import { handlePin } from '../mcp/src/pin.js';
-import { handleExtract } from '../mcp/src/extract.js';
 import { IDENTITY_REGISTRY } from '../mcp/src/types.js';
 
 const OWNER = '0xd45CcF98D6db5A36E7CdD10ffae0b685BF27CE43';
 const CARD_URI = 'https://example.com/8004.json';
+const MCP_URL = 'https://shop.example/mcp';
+const STORE_URL = 'https://shop.example/extract';
 
 function abiString(s: string): string {
   const data = Buffer.from(s, 'utf8');
@@ -23,23 +25,46 @@ function ownerWord(addr: string): string {
   return `0x${addr.slice(2).toLowerCase().padStart(64, '0')}`;
 }
 
-function pinCtx(now = new Date('2026-09-13T21:00:00.000Z')) {
+function liveCard(extra: Record<string, unknown> = {}) {
+  return {
+    name: 'grok',
+    endpoints: { mcp: MCP_URL, http: STORE_URL },
+    ...extra,
+  };
+}
+
+function pinFetch(card: unknown = liveCard()) {
+  return async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('shop.example/mcp')) {
+      return Response.json({ protocol: 'mcp', tools: ['status'] });
+    }
+    if (url.includes('shop.example/extract')) {
+      return new Response(JSON.stringify({ accepts: [] }), {
+        status: 402,
+        headers: { 'www-authenticate': 'x402' },
+      });
+    }
+    if (url.includes('dead.example')) {
+      return new Response('nope', { status: 500 });
+    }
+    if (url.includes('example.com/8004.json')) {
+      return new Response(JSON.stringify(card), { headers: { 'content-type': 'application/json' } });
+    }
+    const body = JSON.parse(String(init?.body ?? '{}')) as { params?: [{ data?: string }] };
+    const data = body.params?.[0]?.data ?? '';
+    if (data.startsWith('0x6352211e')) return Response.json({ result: ownerWord(OWNER) });
+    if (data.startsWith('0xc87b56dd')) return Response.json({ result: abiString(CARD_URI) });
+    return Response.json({ error: { message: 'unexpected' } }, { status: 500 });
+  };
+}
+
+function pinCtx(card: unknown = liveCard(), now = new Date('2026-09-13T21:00:00.000Z')) {
   return createContext({
     now: () => now,
     config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: OWNER },
-    fetch: async (input, init) => {
-      const url = String(input);
-      if (url.includes('example.com/8004.json')) {
-        return new Response(JSON.stringify({ name: 'grok' }), {
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      const body = JSON.parse(String(init?.body ?? '{}')) as { params?: [{ data?: string }] };
-      const data = body.params?.[0]?.data ?? '';
-      if (data.startsWith('0x6352211e')) return Response.json({ result: ownerWord(OWNER) });
-      if (data.startsWith('0xc87b56dd')) return Response.json({ result: abiString(CARD_URI) });
-      return Response.json({ error: { message: 'unexpected' } }, { status: 500 });
-    },
+    resolveHost: async () => ['203.0.113.10'],
+    fetch: pinFetch(card),
   });
 }
 
@@ -69,15 +94,17 @@ describe('hangar listed board', () => {
     expect(await listed!.json()).toEqual([]);
   });
 
-  it('successful pin settle lists newest-first with paymentId and tx', async () => {
+  it('successful pin + live MCP/store lists newest-first with proof', async () => {
     let t = Date.parse('2026-09-13T21:00:00.000Z');
     const ctx = createContext({
       now: () => new Date(t),
       config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: OWNER },
-      fetch: pinCtx().fetch,
+      resolveHost: async () => ['203.0.113.10'],
+      fetch: pinFetch(),
     });
     const first = await payPin(ctx, 86025, 'pin-old');
     expect(first?.status).toBe(200);
+    expect(((await first!.json()) as { listed: boolean }).listed).toBe(true);
     t += 1000;
     const second = await payPin(ctx, 86556, 'pin-new');
     expect(second?.status).toBe(200);
@@ -88,12 +115,42 @@ describe('hangar listed board', () => {
       pinnedAt: string;
       paymentId: string;
       tx?: string;
+      mcpUrl?: string;
+      storeUrl?: string;
+      liveAt?: string;
     }>;
     expect(rows.map((r) => r.agentId)).toEqual([86556, 86025]);
     expect(rows[0]?.paymentId).toBe('pin-new');
     expect(rows[0]?.tx).toMatch(/^0x/);
-    expect(rows[1]?.paymentId).toBe('pin-old');
-    expect(rows[0]?.pinnedAt > rows[1]!.pinnedAt).toBe(true);
+    expect(rows[0]?.mcpUrl).toBe(MCP_URL);
+    expect(rows[0]?.storeUrl).toBe(STORE_URL);
+    expect(rows[0]?.liveAt).toBeTruthy();
+    expect(rows[0]!.pinnedAt > rows[1]!.pinnedAt).toBe(true);
+  });
+
+  it('identity-only pin settles but is not listed', async () => {
+    const ctx = pinCtx({ name: 'blinky', services: [{ name: 'DID', endpoint: 'did:groover:x' }] });
+    const paid = await payPin(ctx, 86556, 'pin-id-only');
+    expect(paid?.status).toBe(200);
+    const body = (await paid!.json()) as { listed: boolean; paid: boolean };
+    expect(body.paid).toBe(true);
+    expect(body.listed).toBe(false);
+    expect(ctx.listed.list()).toEqual([]);
+  });
+
+  it('http shop URL is not listed', async () => {
+    const ctx = pinCtx({ endpoints: { mcp: 'http://shop.example/mcp' } });
+    const paid = await payPin(ctx, 86025, 'pin-http');
+    expect(paid?.status).toBe(200);
+    expect(((await paid!.json()) as { listed: boolean }).listed).toBe(false);
+    expect(ctx.listed.list()).toEqual([]);
+  });
+
+  it('dead HTTPS shop is not listed', async () => {
+    const ctx = pinCtx({ endpoints: { mcp: 'https://dead.example/mcp' } });
+    const paid = await payPin(ctx, 86025, 'pin-dead');
+    expect(paid?.status).toBe(200);
+    expect(ctx.listed.list()).toEqual([]);
   });
 
   it('replayed paymentId does not duplicate the list', async () => {
@@ -118,20 +175,22 @@ describe('hangar listed board', () => {
     expect(handleListed(new Request('http://127.0.0.1/v1/pin?agentId=1'), ctx.listed)).toBeUndefined();
   });
 
-  it('persists listed.jsonl and reloads', () => {
+  it('persists listed.jsonl and refuses identity-only rows', () => {
     const dir = mkdtempSync(join(tmpdir(), 'listed-'));
     const path = listedPath(dir);
     const board = new FileListedBoard(path);
     board.add({
       agentId: 86556,
-      paymentId: 'p1',
+      paymentId: 'p-skip',
       pinnedAt: '2026-09-13T21:00:00.000Z',
-      tx: '0xabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca',
     });
     board.add({
       agentId: 86556,
       paymentId: 'p1',
-      pinnedAt: '2026-09-13T22:00:00.000Z',
+      pinnedAt: '2026-09-13T21:00:00.000Z',
+      tx: '0xabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca',
+      mcpUrl: MCP_URL,
+      liveAt: '2026-09-13T21:00:00.000Z',
     });
     expect(board.list()).toHaveLength(1);
     const reloaded = new FileListedBoard(path);
@@ -141,45 +200,13 @@ describe('hangar listed board', () => {
         paymentId: 'p1',
         pinnedAt: '2026-09-13T21:00:00.000Z',
         tx: '0xabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca',
+        mcpUrl: MCP_URL,
+        liveAt: '2026-09-13T21:00:00.000Z',
       },
     ]);
   });
 
-  it('hydrates listed rows from settled pin receipts', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'listed-led-'));
-    const ledger = new FileLedger(join(dir, 'receipts.jsonl'));
-    ledger.put({
-      paymentId: 'pin-receipt-86556',
-      chainId: 8453,
-      token: 'USDC',
-      amountUsd: '0.01',
-      payTo: '0xc9cD4E19e8fFabFC479352680295ba12e454462D',
-      origin: 'https://clearing-production-9968.up.railway.app',
-      resource: 'https://clearing-production-9968.up.railway.app/v1/pin?agentId=86556',
-      status: 'settled',
-      sessionId: 's',
-      createdAt: '2026-09-10T00:00:00.000Z',
-      updatedAt: '2026-09-10T00:00:00.000Z',
-      txHash: '0x1111111111111111111111111111111111111111111111111111111111111111',
-    });
-    const ctx = createContext({
-      persist: true,
-      ledger,
-      config: {
-        allowFake: true,
-        signer: 'fake',
-        facilitator: 'memory',
-        dataDir: dir,
-        listedSeed: [86666],
-      },
-    });
-    const rows = ctx.listed.list();
-    expect(rows.map((r) => r.agentId)).toEqual([86556, 86666]);
-    expect(rows[0]?.paymentId).toBe('pin-receipt-86556');
-    expect(rows[0]?.tx).toBe('0x1111111111111111111111111111111111111111111111111111111111111111');
-  });
-
-  it('backfills listedSeed agentIds on persist', () => {
+  it('backfills listedSeed only when a live shop URL is present', () => {
     const dir = mkdtempSync(join(tmpdir(), 'listed-seed-'));
     const ctx = createContext({
       persist: true,
@@ -188,23 +215,32 @@ describe('hangar listed board', () => {
         signer: 'fake',
         facilitator: 'memory',
         dataDir: dir,
-        listedSeed: [86556, 86666],
+        listedSeed: [
+          { agentId: 86556, mcpUrl: 'https://clearing-production-9968.up.railway.app/mcp' },
+          { agentId: 86666, storeUrl: 'https://clearing-production-9968.up.railway.app/v1/extract' },
+        ],
       },
     });
     const rows = ctx.listed.list();
     expect(rows.map((r) => r.agentId)).toEqual([86666, 86556]);
-    expect(rows[0]?.paymentId).toBe('backfill:86666');
-    expect(rows[1]?.paymentId).toBe('backfill:86556');
-    expect(rows[0]?.tx).toBeUndefined();
+    expect(rows[0]?.storeUrl).toContain('/v1/extract');
+    expect(rows[1]?.mcpUrl).toContain('/mcp');
   });
 
-  it('llms.txt says pay pin → listed and names the URL', async () => {
+  it('parseListedSeed ignores bare identity-only ids', () => {
+    expect(parseListedSeed('86556,86666')).toEqual([]);
+    expect(parseListedSeed('86556|https://clearing-production-9968.up.railway.app/mcp')).toEqual([
+      { agentId: 86556, mcpUrl: 'https://clearing-production-9968.up.railway.app/mcp' },
+    ]);
+  });
+
+  it('llms.txt says pin + live MCP/hangar store → listed', async () => {
     const ctx = pinCtx();
     const res = await handleExtract(new Request('http://127.0.0.1/llms.txt'), ctx);
     const text = await res.text();
-    expect(text).toMatch(/pay pin \(\$0\.01 USDC Base\) → you appear on \/v1\/listed/i);
+    expect(text).toMatch(/pay pin \(\$0\.01 USDC Base\) \+ live HTTPS MCP or hangar store/i);
     expect(text).toContain('listed: GET /v1/listed');
-    expect(text).toMatch(/No extra directory fee/);
+    expect(text).toMatch(/Identity-only cards are not listed/);
   });
 
   it('canonical registry unchanged', () => {
