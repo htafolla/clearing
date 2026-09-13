@@ -3,10 +3,13 @@
 Pay live x402 services. Sell receipted URL extracts. Never double-pay.
 
 extract: GET https://api.clearing.dev/v1/extract?url={url}&js=0|1
+pin: GET https://api.clearing.dev/v1/pin?agentId={id}
+listed: GET https://api.clearing.dev/v1/listed
+rule: pay pin ($0.01 USDC Base) → you appear on /v1/listed. No extra directory fee.
 mcp: https://mcp.clearing.dev/mcp
 chain: eip155:8453
 asset: USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-price: 0.02 | 0.05 js
+price: 0.02 | 0.05 js | pin 0.01
 payment: x402 v1 X-PAYMENT and v2 PAYMENT-SIGNATURE
 retry: same paymentId, same signed payload, never re-sign
 identity: wallet signature; no account

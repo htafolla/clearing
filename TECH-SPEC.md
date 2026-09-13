@@ -174,7 +174,7 @@ Rules:
 - v1 does not buy upstream 402. Paid-origin is `blocked: true` with no charge.
 - No account. Wallet signature is identity.
 
-`GET /agents.md`, `GET /llms.txt`, `GET /.well-known/agent.json` are public and unpaid.
+`GET /agents.md`, `GET /llms.txt`, `GET /.well-known/agent.json`, `GET /v1/listed` are public and unpaid. Pay pin ($0.01) → listed. No extra directory fee.
 
 ## 8. Discover filter (the actual moat)
 

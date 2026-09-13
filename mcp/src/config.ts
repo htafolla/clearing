@@ -105,7 +105,30 @@ export function defaultConfig(overrides: Partial<ClearingConfig> = {}): Clearing
     sessionId: overrides.sessionId ?? env('CLEARING_SESSION_ID') ?? randomUUID(),
     soakFromAddresses: soak,
     sessionToken: overrides.sessionToken ?? env('CLEARING_SESSION_TOKEN'),
+    listedSeed: overrides.listedSeed ?? defaultListedSeed(),
   };
+}
+
+/** Blinky 86556 and friend 86666 — hosted hangar board seed when env is unset. */
+const HOSTED_LISTED_SEED = [86556, 86666];
+
+function defaultListedSeed(): number[] {
+  const raw = env('CLEARING_LISTED_SEED');
+  if (raw !== undefined) return parseListedSeed(raw);
+  if (process.env.RAILWAY_ENVIRONMENT) return HOSTED_LISTED_SEED;
+  return [];
+}
+
+export function parseListedSeed(raw: string): number[] {
+  const ids: number[] = [];
+  const seen = new Set<number>();
+  for (const part of raw.split(',')) {
+    const n = Number.parseInt(part.trim(), 10);
+    if (!Number.isInteger(n) || n < 0 || seen.has(n)) continue;
+    seen.add(n);
+    ids.push(n);
+  }
+  return ids;
 }
 
 export function maskAddress(addr: HexAddress): string {

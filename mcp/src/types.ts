@@ -36,6 +36,8 @@ export type ClearingConfig = {
   sessionId: string;
   soakFromAddresses: HexAddress[];
   sessionToken?: string;
+  /** Friend-test pin backfill (agentIds). Hosted defaults 86556,86666 when env unset. */
+  listedSeed: number[];
 };
 
 export type Receipt = {

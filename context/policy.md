@@ -38,6 +38,12 @@ Fail closed. Caps here are a second fuse. The rail is authoritative.
 - robots / no-ai / paid-origin: no stolen body.
 - Do not charge when the policy block is known before settlement.
 
+## Pin / listed
+
+- Pin is $0.01 USDC on Base. A successful settle lists `{ agentId, pinnedAt, paymentId, tx? }` on `GET /v1/listed`.
+- No second directory fee. Unpaid pin is still 402.
+- This is a pin receipt index, not a job board.
+
 ## Discover
 
 - List only: card + endpoint + probe + recoverable quote + 7-day USDC settlement.

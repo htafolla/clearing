@@ -1,12 +1,13 @@
 /**
  * 8004-pin: pay $0.01 USDC to pin a live ERC-8004 identity card.
+ * Successful settle lists the agent on GET /v1/listed. No second directory fee.
  * Returns owner, agentURI, card JSON, sha256 of the bytes. Due diligence, not a scrape.
  */
 import { createHash } from 'node:crypto';
 import { ClearingError } from './errors.js';
 import { assertPublicExtractTarget } from './origin.js';
 import { IDENTITY_REGISTRY } from './types.js';
-import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
+import { buildQuote, buildRequirements, decodePayload, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
 import type { ClearingContext } from './context.js';
 
 const PIN_USD = 0.01;
@@ -62,6 +63,8 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
   if (!settle.ok) {
     return json({ error: settle.error ?? 'payment not settled', paid: false }, 402);
   }
+
+  noteListed(ctx, agentId, paymentHeader, settle.txHash);
 
   return json({
     paid: true,
@@ -154,6 +157,27 @@ async function fetchCard(
     /* keep text */
   }
   return { card, sha256, bytes: buf.length };
+}
+
+function noteListed(
+  ctx: ClearingContext,
+  agentId: number,
+  paymentHeader: string,
+  tx?: `0x${string}`,
+): void {
+  let paymentId = '';
+  try {
+    paymentId = decodePayload(paymentHeader).paymentId;
+  } catch {
+    paymentId = '';
+  }
+  if (!paymentId) paymentId = tx ? `tx:${tx}` : `pin:${agentId}:${ctx.now().toISOString()}`;
+  ctx.listed.add({
+    agentId,
+    paymentId,
+    pinnedAt: ctx.now().toISOString(),
+    ...(tx ? { tx } : {}),
+  });
 }
 
 function json(body: unknown, status = 200): Response {
