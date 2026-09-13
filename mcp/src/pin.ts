@@ -1,12 +1,15 @@
 /**
  * 8004-pin: pay $0.01 USDC to pin a live ERC-8004 identity card.
+ * Successful settle lists the agent on GET /v1/listed only if the card has a live
+ * HTTPS MCP or hangar store (tools / 402 / health). Identity-only is not listed.
  * Returns owner, agentURI, card JSON, sha256 of the bytes. Due diligence, not a scrape.
  */
 import { createHash } from 'node:crypto';
 import { ClearingError } from './errors.js';
 import { assertPublicExtractTarget } from './origin.js';
 import { IDENTITY_REGISTRY } from './types.js';
-import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
+import { findLiveShop, type LiveShop } from './live-shop.js';
+import { buildQuote, buildRequirements, decodePayload, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
 import type { ClearingContext } from './context.js';
 
 const PIN_USD = 0.01;
@@ -63,8 +66,12 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
     return json({ error: settle.error ?? 'payment not settled', paid: false }, 402);
   }
 
+  const live = await findLiveShop(fetched.card, ctx);
+  if (live) noteListed(ctx, agentId, paymentHeader, settle.txHash, live);
+
   return json({
     paid: true,
+    listed: Boolean(live),
     chainId: 8453,
     registry,
     agentId,
@@ -74,6 +81,8 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
     sha256: fetched.sha256,
     bytes: fetched.bytes,
     txHash: settle.txHash,
+    ...(live?.mcpUrl ? { mcpUrl: live.mcpUrl } : {}),
+    ...(live?.storeUrl ? { storeUrl: live.storeUrl } : {}),
   });
 }
 
@@ -154,6 +163,31 @@ async function fetchCard(
     /* keep text */
   }
   return { card, sha256, bytes: buf.length };
+}
+
+function noteListed(
+  ctx: ClearingContext,
+  agentId: number,
+  paymentHeader: string,
+  tx: `0x${string}` | undefined,
+  live: LiveShop,
+): void {
+  let paymentId = '';
+  try {
+    paymentId = decodePayload(paymentHeader).paymentId;
+  } catch {
+    paymentId = '';
+  }
+  if (!paymentId) paymentId = tx ? `tx:${tx}` : `pin:${agentId}:${ctx.now().toISOString()}`;
+  ctx.listed.add({
+    agentId,
+    paymentId,
+    pinnedAt: ctx.now().toISOString(),
+    ...(tx ? { tx } : {}),
+    ...(live.mcpUrl ? { mcpUrl: live.mcpUrl } : {}),
+    ...(live.storeUrl ? { storeUrl: live.storeUrl } : {}),
+    liveAt: live.liveAt,
+  });
 }
 
 function json(body: unknown, status = 200): Response {

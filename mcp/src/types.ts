@@ -36,6 +36,14 @@ export type ClearingConfig = {
   sessionId: string;
   soakFromAddresses: HexAddress[];
   sessionToken?: string;
+  /** Friend-test pin backfill. Rows without mcpUrl/storeUrl are ignored (identity-only). */
+  listedSeed: ListedSeed[];
+};
+
+export type ListedSeed = {
+  agentId: number;
+  mcpUrl?: string;
+  storeUrl?: string;
 };
 
 export type Receipt = {

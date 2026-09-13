@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { handleExtract } from './extract.js';
+import { handleListed } from './listed.js';
 import { handlePin } from './pin.js';
 import { handleWitness } from './witness.js';
 import type { ClearingContext } from './context.js';
@@ -10,6 +11,7 @@ export function isExtractPath(pathname: string): boolean {
     pathname.startsWith('/v1/extract') ||
     pathname === '/v1/pin' ||
     pathname.startsWith('/v1/pin') ||
+    pathname === '/v1/listed' ||
     pathname === '/v1/witness' ||
     pathname.startsWith('/v1/witness') ||
     pathname === '/agents.md' ||
@@ -27,9 +29,10 @@ export function createExtractHttpServer(ctx: ClearingContext) {
 export async function dispatch(req: IncomingMessage, res: ServerResponse, ctx: ClearingContext): Promise<void> {
   try {
     const request = await incomingToRequest(req, ctx.config.extractBaseUrl);
-    const pin = await handlePin(request, ctx);
-    const witness = pin ? undefined : await handleWitness(request, ctx);
-    const response = pin ?? witness ?? (await handleExtract(request, ctx));
+    const listed = handleListed(request, ctx.listed);
+    const pin = listed ? undefined : await handlePin(request, ctx);
+    const witness = pin || listed ? undefined : await handleWitness(request, ctx);
+    const response = listed ?? pin ?? witness ?? (await handleExtract(request, ctx));
     res.statusCode = response.status;
     response.headers.forEach((value, key) => {
       res.setHeader(key, value);

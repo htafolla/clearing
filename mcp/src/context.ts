@@ -11,6 +11,7 @@ import {
   settlementPath,
   type SettlementOracle,
 } from './settlement.js';
+import { FileListedBoard, MemoryListedBoard, listedPath, type ListedBoard } from './listed.js';
 import { decodePayload } from './x402.js';
 import type { ClearingConfig, FetchFn } from './types.js';
 
@@ -26,6 +27,7 @@ export type ClearingContext = {
   cache: ExtractCache;
   watchlist: Watchlist;
   settlements: SettlementOracle;
+  listed: ListedBoard;
   renderer?: JsRenderer;
   resolveHost: (hostname: string) => Promise<string[]>;
   liveDiscoverOrigins: () => Set<string>;
@@ -42,6 +44,7 @@ export type ContextOverrides = {
   cache?: ExtractCache;
   watchlist?: Watchlist;
   settlements?: SettlementOracle;
+  listed?: ListedBoard;
   renderer?: JsRenderer;
   resolveHost?: (hostname: string) => Promise<string[]>;
   persist?: boolean;
@@ -95,6 +98,9 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
     settlements:
       overrides.settlements ??
       (overrides.persist ? new FileSettlementOracle(settlementPath(config.dataDir)) : new MemorySettlementOracle()),
+    listed:
+      overrides.listed ??
+      (overrides.persist ? new FileListedBoard(listedPath(config.dataDir)) : new MemoryListedBoard()),
     renderer: overrides.renderer,
     resolveHost: overrides.resolveHost ?? (async (hostname) => {
       const { promises: dns } = await import('node:dns');
@@ -107,8 +113,26 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
       for (const o of origins) live.add(o);
     },
   };
-  if (overrides.persist) hydrateSettlementsFromLedger(ctx);
+  if (overrides.persist) {
+    hydrateSettlementsFromLedger(ctx);
+    seedListed(ctx);
+  }
   return ctx;
+}
+
+function seedListed(ctx: ClearingContext): void {
+  const base = Date.UTC(2026, 8, 1, 0, 0, 0);
+  for (const [i, seed] of ctx.config.listedSeed.entries()) {
+    if (!seed.mcpUrl && !seed.storeUrl) continue;
+    ctx.listed.add({
+      agentId: seed.agentId,
+      paymentId: `backfill:${seed.agentId}`,
+      pinnedAt: new Date(base + i * 1000).toISOString(),
+      ...(seed.mcpUrl ? { mcpUrl: seed.mcpUrl } : {}),
+      ...(seed.storeUrl ? { storeUrl: seed.storeUrl } : {}),
+      liveAt: new Date(base + i * 1000).toISOString(),
+    });
+  }
 }
 
 function hydrateSettlementsFromLedger(ctx: ClearingContext): void {
