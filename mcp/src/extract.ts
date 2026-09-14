@@ -35,7 +35,7 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
   if (url.pathname === '/.well-known/x402') {
     const token =
       process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY?.trim() ||
-      'atc_USv4XEiHgj1qKR1bzsYGB08te1TfI4sH';
+      'atc_rnW0Dzjm-5VcJzsY7wGmYtjr1jtncK69';
     return json({ agentToolsVerify: token });
   }
   if (url.pathname !== '/v1/extract') {
