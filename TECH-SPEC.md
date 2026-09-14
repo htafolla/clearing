@@ -125,7 +125,7 @@ Behavior:
 1. If `maxUsd` > perTxCap → error, no request.
 2. GET url.
 3. If not 402, return body + `paid: false`.
-4. If 402, parse `accepts[]` (x402 v1 `X-PAYMENT` and v2 `PAYMENT-REQUIRED`).
+4. If 402, parse `accepts[]` (seller challenge is x402 v2 + `extensions.bazaar`; buyer still sends ZigZag EIP-3009 on `X-PAYMENT` / `PAYMENT-SIGNATURE`).
 5. Reject if origin not allowlisted and not in current discover set.
 6. Reject if quoted price > `maxUsd` or remaining caps.
 7. If price ≥ `confirmAboveUsd` and `dry_run` → return `needs_approval` intent. Grok Plan Mode must show it.
@@ -148,7 +148,7 @@ No bootstrap tool in v1. Operator funds the rail wallet once. Status tells them 
 GET /v1/extract?url={encodeURIComponent}&js=0|1
 ```
 
-Unpaid → 402 with USDC Base quote (`extractPriceUsd` or 0.05 if `js=1`).
+Unpaid → 402 x402 v2 (`x402Version: 2`, top-level `resource`, `accepts[].amount`, `extensions.bazaar`) with USDC Base quote (`extractPriceUsd` or 0.05 if `js=1`). Witness and pin use the same challenge shape. ZigZag still signs v1 EIP-3009 payloads.
 
 Paid → 200:
 
@@ -174,7 +174,7 @@ Rules:
 - v1 does not buy upstream 402. Paid-origin is `blocked: true` with no charge.
 - No account. Wallet signature is identity.
 
-`GET /agents.md`, `GET /llms.txt`, `GET /.well-known/agent.json`, `GET /.well-known/x402`, `GET /.well-known/agent-tools-verify.txt`, `GET /v1/listed`, `GET /v1/online` are public and unpaid. `/.well-known/x402` is JSON with `agentToolsVerify` (default `public/.well-known/x402`, override `CLEARING_AGENT_TOOLS_VERIFY` / `AGENT_TOOLS_VERIFY_DESCRIPTOR`). The verify.txt file is the rippel.ai ATC claim and must stay `atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9`. Pay pin ($0.01) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store + online (health ok within 15 minutes, `probeIntervalMs`) → listed. Identity-only cards are not listed. Pin alone is not enough. No extra directory fee.
+`GET /agents.md`, `GET /llms.txt`, `GET /.well-known/agent.json`, `GET /.well-known/x402`, `GET /.well-known/agent-tools-verify.txt`, `GET /openapi.json`, `GET /v1/listed`, `GET /v1/online` are public and unpaid. `/.well-known/x402` is JSON with `agentToolsVerify` (default `public/.well-known/x402`, override `CLEARING_AGENT_TOOLS_VERIFY` / `AGENT_TOOLS_VERIFY_DESCRIPTOR`) plus `x402Version` and probe `resources` for x402scan. The verify.txt file is the rippel.ai ATC claim and must stay `atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9`. Pay pin ($0.01) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store + online (health ok within 15 minutes, `probeIntervalMs`) → listed. Identity-only cards are not listed. Pin alone is not enough. No extra directory fee.
 
 ## 8. Discover filter (the actual moat)
 

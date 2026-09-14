@@ -12,7 +12,7 @@ import { assertPublicExtractTarget } from './origin.js';
 import { IDENTITY_REGISTRY } from './types.js';
 import { hangarCertified } from './gates.js';
 import { findLiveShop, type LiveShop } from './live-shop.js';
-import { buildQuote, buildRequirements, decodePayload, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
+import { buildQuote, buildRequirements, decodePayload, paymentHeaderFromRequest, quoteHeaders, type BazaarDiscovery } from './x402.js';
 import type { ClearingContext } from './context.js';
 
 const PIN_USD = 0.01;
@@ -59,7 +59,7 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
     resource,
     description: `ERC-8004 pin agentId ${agentId}`,
   });
-  const quote = buildQuote(requirements);
+  const quote = buildQuote(requirements, undefined, pinDiscovery(agentId));
   const paymentHeader = paymentHeaderFromRequest(req.headers);
   if (!paymentHeader) {
     return new Response(JSON.stringify(quote), { status: 402, headers: quoteHeaders(quote) });
@@ -198,6 +198,26 @@ function noteListed(
     solar: certified.solar,
     healthAt: live.liveAt,
   });
+}
+
+function pinDiscovery(agentId: number): BazaarDiscovery {
+  return {
+    queryParams: { agentId: String(agentId) },
+    querySchema: {
+      agentId: { type: 'string', description: 'ERC-8004 identity token id (uint)' },
+      registry: { type: 'string', description: 'Identity registry address (optional)' },
+    },
+    requiredQuery: ['agentId'],
+    outputExample: {
+      paid: true,
+      listed: false,
+      agentId,
+      owner: '0x0000000000000000000000000000000000000000',
+      agentURI: 'https://example.com/8004.json',
+      sha256: '00',
+    },
+    tags: ['pin'],
+  };
 }
 
 function json(body: unknown, status = 200): Response {
