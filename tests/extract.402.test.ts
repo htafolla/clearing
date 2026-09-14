@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { handleExtract } from '../mcp/src/extract.js';
+import { isExtractPath } from '../mcp/src/http.js';
 import { fetchPaid } from '../mcp/src/pay.js';
 import { handleTool } from '../mcp/src/tools.js';
 import { V1_PAYMENT_HEADER, V2_REQUIRED_HEADER, decodePayload } from '../mcp/src/x402.js';
@@ -113,6 +114,19 @@ describe('extract 402', () => {
     expect(await agents.text()).toContain('never `xray-clearing`');
     expect(card.status).toBe(200);
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
+  });
+
+  it('serves Agent Tools domain claim as exact text/plain token', async () => {
+    const ctx = makeCtx();
+    const res = await handleExtract(
+      new Request('https://clearing.rippel.ai/.well-known/agent-tools-verify.txt'),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/^text\/plain/);
+    expect(await res.text()).toBe('atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9');
+    expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
+    expect(isExtractPath('/.well-known/agent-tools-verify.txt')).toBe(true);
   });
 
   it('does not fetch private extract targets', async () => {

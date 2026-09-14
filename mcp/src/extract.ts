@@ -18,7 +18,11 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
   if (url.pathname === '/health') {
     return json({ ok: true, service: 'clearing-extract' });
   }
-  if (url.pathname === '/agents.md' || url.pathname === '/llms.txt') {
+  if (
+    url.pathname === '/agents.md' ||
+    url.pathname === '/llms.txt' ||
+    url.pathname === '/.well-known/agent-tools-verify.txt'
+  ) {
     return new Response(publicText(url.pathname), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
   if (url.pathname === '/.well-known/agent.json') {
@@ -207,10 +211,18 @@ function json(body: unknown, status = 200, extraHeaders?: Record<string, string>
 }
 
 function publicText(pathname: string): string {
-  const file = pathname === '/llms.txt' ? 'llms.txt' : 'agents.md';
+  const file =
+    pathname === '/llms.txt'
+      ? 'llms.txt'
+      : pathname === '/.well-known/agent-tools-verify.txt'
+        ? '.well-known/agent-tools-verify.txt'
+        : 'agents.md';
   try {
     return readFileSync(join(PUBLIC_DIR, file), 'utf8');
   } catch {
+    if (pathname === '/.well-known/agent-tools-verify.txt') {
+      return process.env.AGENT_TOOLS_VERIFY_TOKEN?.trim() || 'atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9';
+    }
     if (pathname === '/llms.txt') {
       return `# Clearing
 extract: GET /v1/extract?url={url}&js=0|1
