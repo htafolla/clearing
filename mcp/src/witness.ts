@@ -5,7 +5,7 @@
 import { textHash } from './bytes.js';
 import { ClearingError } from './errors.js';
 import { assertPublicExtractTarget } from './origin.js';
-import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
+import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders, type BazaarDiscovery } from './x402.js';
 import type { ClearingContext } from './context.js';
 
 const WITNESS_USD = 0.02;
@@ -39,7 +39,7 @@ export async function handleWitness(req: Request, ctx: ClearingContext): Promise
     resource,
     description: 'GET witness (status, type, sha256, bytes)',
   });
-  const quote = buildQuote(requirements);
+  const quote = buildQuote(requirements, undefined, witnessDiscovery(target));
   const paymentHeader = paymentHeaderFromRequest(req.headers);
   if (!paymentHeader) {
     return new Response(JSON.stringify(quote), { status: 402, headers: quoteHeaders(quote) });
@@ -99,6 +99,25 @@ async function getOnce(
     };
   }
   throw new ClearingError('ssrf', 'too many redirects', 400);
+}
+
+function witnessDiscovery(target: URL): BazaarDiscovery {
+  return {
+    queryParams: { url: target.toString() },
+    querySchema: {
+      url: { type: 'string', description: 'Public https URL to witness' },
+    },
+    requiredQuery: ['url'],
+    outputExample: {
+      url: target.toString(),
+      finalUrl: target.toString(),
+      httpStatus: 200,
+      contentType: 'text/plain',
+      bodySha256: 'sha256:00',
+      bodyBytes: 0,
+    },
+    tags: ['witness'],
+  };
 }
 
 function json(body: unknown, status = 200): Response {
