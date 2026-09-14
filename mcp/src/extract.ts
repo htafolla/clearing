@@ -24,6 +24,14 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
   if (url.pathname === '/.well-known/agent.json') {
     return json(agentCard(ctx));
   }
+  if (url.pathname === '/.well-known/agent-tools-verify.txt') {
+    try {
+      const body = readFileSync(join(PUBLIC_DIR, '.well-known/agent-tools-verify.txt'), 'utf8');
+      return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    } catch {
+      return new Response('missing', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    }
+  }
   if (url.pathname !== '/v1/extract') {
     return json({ error: 'not found' }, 404);
   }
