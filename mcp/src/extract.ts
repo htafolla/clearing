@@ -25,6 +25,14 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
     return json(agentCard(ctx));
   }
   if (url.pathname === '/.well-known/agent-tools-verify.txt') {
+    const host = (url.host || '').toLowerCase();
+    // Railway hostname claims ATC-29; rippel.ai keeps ATC-28 file token.
+    if (host.includes('railway.app')) {
+      const railwayToken =
+        process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY?.trim() ||
+        'atc_r6O9K2gBe1-IuHPkirXKsiJ4TQSYNIkx';
+      return new Response(railwayToken, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    }
     try {
       const body = readFileSync(join(PUBLIC_DIR, '.well-known/agent-tools-verify.txt'), 'utf8');
       return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
