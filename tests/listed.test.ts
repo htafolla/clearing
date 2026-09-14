@@ -144,7 +144,12 @@ describe('hangar listed board', () => {
   });
 
   it('identity-only pin settles but is not listed', async () => {
-    const ctx = pinCtx({ name: 'blinky', services: [{ name: 'DID', endpoint: 'did:groover:x' }] });
+    const ctx = pinCtx({
+      name: 'blinky',
+      endpoints: {},
+      services: [{ name: 'DID', endpoint: 'did:groover:x' }],
+      groover: undefined,
+    });
     const paid = await payPin(ctx, 86556, 'pin-id-only');
     expect(paid?.status).toBe(200);
     const body = (await paid!.json()) as { listed: boolean; paid: boolean };
