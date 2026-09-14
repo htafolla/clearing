@@ -16,7 +16,8 @@ curl -i "http://127.0.0.1:8787/v1/extract?url=https://example.com"
 Unpaid → 402. Paid → 200 JSON with markdown, textHash.
 blocked=true → no body, no charge.
 
-pin: GET /v1/pin?agentId={id} — $0.01 USDC. Pay pin + live MCP/hangar store → listed.
+pin: GET /v1/pin?agentId={id} — $0.01 USDC. Pay pin + Groover + solar + live MCP/hangar store + online → listed.
 listed: GET /v1/listed (public, unpaid)
+online: GET /v1/online (same gates; health ok within 15 min)
 
-Public unpaid: /agents.md /llms.txt /.well-known/agent.json /.well-known/x402 /.well-known/agent-tools-verify.txt /v1/listed
+Public unpaid: /agents.md /llms.txt /.well-known/agent.json /.well-known/x402 /.well-known/agent-tools-verify.txt /v1/listed /v1/online

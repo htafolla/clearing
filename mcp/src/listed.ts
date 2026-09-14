@@ -1,8 +1,11 @@
 /**
  * Hangar board: successful pin settle → public list. No second directory fee.
+ * Online/certified: Groover + Dynamo solar + live MCP/store + health ok within N minutes.
+ * N = probeIntervalMs (default 15 minutes).
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { probeLiveHttps, type LiveShopCtx } from './live-shop.js';
 import type { HexAddress } from './types.js';
 
 export type ListedPin = {
@@ -13,12 +16,35 @@ export type ListedPin = {
   mcpUrl?: string;
   storeUrl?: string;
   liveAt?: string;
+  groover?: string;
+  solar?: string;
+  healthAt?: string;
+};
+
+export type PublicListedRow = {
+  agentId: number;
+  pinnedAt: string;
+  paymentId: string;
+  tx?: HexAddress;
+  mcpUrl?: string;
+  storeUrl?: string;
+  liveAt?: string;
+  groover?: string;
+  solar?: string;
+  healthAt?: string;
+  live: true;
 };
 
 export interface ListedBoard {
   add(row: ListedPin): void;
   list(): ListedPin[];
+  touchHealth(agentId: number, healthAt: string): void;
 }
+
+export type ListedHttpCtx = LiveShopCtx & {
+  listed: ListedBoard;
+  config: LiveShopCtx['config'] & { probeIntervalMs: number };
+};
 
 export class MemoryListedBoard implements ListedBoard {
   protected readonly rows: ListedPin[] = [];
@@ -31,20 +57,33 @@ export class MemoryListedBoard implements ListedBoard {
     this.push(row);
   }
 
+  touchHealth(agentId: number, healthAt: string): void {
+    let latest: ListedPin | undefined;
+    for (const row of this.rows) {
+      if (row.agentId !== agentId) continue;
+      if (!latest || row.pinnedAt >= latest.pinnedAt) latest = row;
+    }
+    if (latest) latest.healthAt = healthAt;
+  }
+
   protected push(row: ListedPin): boolean {
     if (!Number.isInteger(row.agentId) || row.agentId < 0) return false;
     if (!row.paymentId || !row.pinnedAt) return false;
     if (!row.mcpUrl && !row.storeUrl) return false;
+    if (!row.groover || !row.solar) return false;
     if (this.rows.some((r) => r.paymentId === row.paymentId)) return false;
     const next: ListedPin = {
       agentId: row.agentId,
       paymentId: row.paymentId,
       pinnedAt: row.pinnedAt,
+      groover: row.groover,
+      solar: row.solar,
     };
     if (row.tx) next.tx = row.tx;
     if (row.mcpUrl) next.mcpUrl = row.mcpUrl;
     if (row.storeUrl) next.storeUrl = row.storeUrl;
     if (row.liveAt) next.liveAt = row.liveAt;
+    next.healthAt = row.healthAt ?? row.liveAt ?? row.pinnedAt;
     this.rows.push(next);
     return true;
   }
@@ -96,40 +135,62 @@ function loadListedJsonl(path: string): ListedPin[] {
   return rows;
 }
 
-export function publicListedRow(row: ListedPin): {
-  agentId: number;
-  pinnedAt: string;
-  paymentId: string;
-  tx?: HexAddress;
-  mcpUrl?: string;
-  storeUrl?: string;
-  liveAt?: string;
-} {
-  const out: {
-    agentId: number;
-    pinnedAt: string;
-    paymentId: string;
-    tx?: HexAddress;
-    mcpUrl?: string;
-    storeUrl?: string;
-    liveAt?: string;
-  } = {
+export function publicListedRow(row: ListedPin): PublicListedRow {
+  const out: PublicListedRow = {
     agentId: row.agentId,
     pinnedAt: row.pinnedAt,
     paymentId: row.paymentId,
+    live: true,
   };
   if (row.tx) out.tx = row.tx;
   if (row.mcpUrl) out.mcpUrl = row.mcpUrl;
   if (row.storeUrl) out.storeUrl = row.storeUrl;
   if (row.liveAt) out.liveAt = row.liveAt;
+  if (row.groover) out.groover = row.groover;
+  if (row.solar) out.solar = row.solar;
+  if (row.healthAt) out.healthAt = row.healthAt;
   return out;
 }
 
-export function handleListed(req: Request, board: ListedBoard): Response | undefined {
+export function isHealthFresh(healthAt: string | undefined, now: Date, windowMs: number): boolean {
+  if (!healthAt) return false;
+  const at = Date.parse(healthAt);
+  if (!Number.isFinite(at)) return false;
+  return now.getTime() - at <= windowMs;
+}
+
+export async function handleListed(req: Request, ctx: ListedHttpCtx): Promise<Response | undefined> {
   const url = new URL(req.url);
-  if (url.pathname !== '/v1/listed') return undefined;
-  return new Response(JSON.stringify(board.list().map(publicListedRow)), {
+  if (url.pathname !== '/v1/listed' && url.pathname !== '/v1/online') return undefined;
+  const windowMs = ctx.config.probeIntervalMs;
+  const now = ctx.now();
+  const rows: PublicListedRow[] = [];
+  for (const row of ctx.listed.list()) {
+    const live = await onlineRow(row, ctx, now, windowMs);
+    if (live) rows.push(live);
+  }
+  return new Response(JSON.stringify(rows), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+async function onlineRow(
+  row: ListedPin,
+  ctx: ListedHttpCtx,
+  now: Date,
+  windowMs: number,
+): Promise<PublicListedRow | undefined> {
+  if (!row.groover || !row.solar) return undefined;
+  if (!row.mcpUrl && !row.storeUrl) return undefined;
+  if (isHealthFresh(row.healthAt, now, windowMs)) return publicListedRow(row);
+  const urls = [row.mcpUrl, row.storeUrl].filter((u): u is string => Boolean(u));
+  for (const shop of urls) {
+    if (await probeLiveHttps(shop, ctx)) {
+      const healthAt = now.toISOString();
+      ctx.listed.touchHealth(row.agentId, healthAt);
+      return publicListedRow({ ...row, healthAt });
+    }
+  }
+  return undefined;
 }

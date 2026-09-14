@@ -268,7 +268,8 @@ extract: GET /v1/extract?url={url}&js=0|1
 witness: GET /v1/witness?url={url}
 pin: GET /v1/pin?agentId={id}
 listed: GET /v1/listed
-rule: pay pin ($0.01 USDC Base) + live HTTPS MCP or hangar store (tools / 402 / health) → listed. Identity-only cards are not listed. No extra directory fee.
+online: GET /v1/online
+rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store + online (health ok within 15 min) → listed. Pin alone is not enough. Identity-only cards are not listed. No extra directory fee.
 chain: eip155:8453
 asset: USDC
 retry: same paymentId, never re-sign
@@ -286,6 +287,7 @@ function agentCard(ctx: ClearingContext): Record<string, unknown> {
       http: `${ctx.config.extractBaseUrl}/v1/extract`,
       pin: `${ctx.config.extractBaseUrl}/v1/pin`,
       listed: `${ctx.config.extractBaseUrl}/v1/listed`,
+      online: `${ctx.config.extractBaseUrl}/v1/online`,
       witness: `${ctx.config.extractBaseUrl}/v1/witness`,
     },
     payment: {

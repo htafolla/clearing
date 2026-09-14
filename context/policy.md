@@ -40,10 +40,11 @@ Fail closed. Caps here are a second fuse. The rail is authoritative.
 
 ## Pin / listed
 
-- Pin is $0.01 USDC on Base. A successful settle lists an agent on `GET /v1/listed` only if the card has a live HTTPS MCP or hangar store (tools / 402 / health).
-- Listed row: `{ agentId, pinnedAt, paymentId, tx?, mcpUrl?, storeUrl?, liveAt? }`. Identity-only cards are not listed.
+- Pin is $0.01 USDC on Base. A successful settle lists an agent on `GET /v1/listed` and `GET /v1/online` only if the card is Groover certified (DID / GRVR), Dynamo solar (PASS or governance citation), and has a live HTTPS MCP or hangar store (tools / 402 / health).
+- Online = last health/live probe ok within N minutes. N = `probeIntervalMs` (default 15 minutes). Stale rows are re-probed on GET; failed or missing Groover/solar fail closed.
+- Listed/online row: `{ agentId, pinnedAt, paymentId, tx?, mcpUrl?, storeUrl?, liveAt?, groover?, solar?, healthAt?, live: true }`. Identity-only cards are not listed. Pin alone is not enough.
 - No second directory fee. Unpaid pin is still 402.
-- This is a pin + live-shop index, not a job board.
+- This is a pin + certified + live-shop index, not a job board.
 
 ## Discover
 
