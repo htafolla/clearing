@@ -93,10 +93,39 @@ export type PaymentExtra = {
   mintIndexSource?: 'settledPaid';
 };
 
+/** x402 v2 PaymentRequired. `accepts[]` keeps v1 fields so ZigZag still signs EIP-3009. */
+export type BazaarExtension = {
+  info: {
+    input: {
+      type: 'http';
+      method: 'GET';
+      queryParams?: Record<string, string>;
+    };
+    output?: {
+      type: 'json';
+      example: Record<string, unknown>;
+    };
+  };
+  schema: {
+    $schema: 'https://json-schema.org/draft/2020-12/schema';
+    type: 'object';
+    properties: Record<string, unknown>;
+    required: ['input'];
+  };
+};
+
 export type X402Quote = {
-  x402Version: 1;
+  x402Version: 2;
   error: string;
-  accepts: PaymentRequirements[];
+  resource: {
+    url: string;
+    description: string;
+    mimeType: 'application/json';
+    serviceName: string;
+    tags?: string[];
+  };
+  accepts: Array<PaymentRequirements & { amount: string }>;
+  extensions: { bazaar: BazaarExtension };
 };
 
 export type SignedPayment = {
