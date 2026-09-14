@@ -115,6 +115,71 @@ describe('extract 402', () => {
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
   });
 
+  it('GET /.well-known/x402 includes ATC descriptor agentToolsVerify', async () => {
+    const prevClearing = process.env.CLEARING_AGENT_TOOLS_VERIFY;
+    const prevDescriptor = process.env.AGENT_TOOLS_VERIFY_DESCRIPTOR;
+    const prevRailway = process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY;
+    delete process.env.CLEARING_AGENT_TOOLS_VERIFY;
+    delete process.env.AGENT_TOOLS_VERIFY_DESCRIPTOR;
+    process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY = 'atc_r6O9K2gBe1-IuHPkirXKsiJ4TQSYNIkx';
+    try {
+      const ctx = makeCtx();
+      const res = await handleExtract(new Request('https://clearing-production-9968.up.railway.app/.well-known/x402'), ctx);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toMatch(/application\/json/);
+      const body = (await res.json()) as { agentToolsVerify: string };
+      expect(body.agentToolsVerify).toBe('atc_rnW0Dzjm-5VcJzsY7wGmYtjr1jtncK69');
+      expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
+    } finally {
+      if (prevClearing === undefined) delete process.env.CLEARING_AGENT_TOOLS_VERIFY;
+      else process.env.CLEARING_AGENT_TOOLS_VERIFY = prevClearing;
+      if (prevDescriptor === undefined) delete process.env.AGENT_TOOLS_VERIFY_DESCRIPTOR;
+      else process.env.AGENT_TOOLS_VERIFY_DESCRIPTOR = prevDescriptor;
+      if (prevRailway === undefined) delete process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY;
+      else process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY = prevRailway;
+    }
+  });
+
+  it('CLEARING_AGENT_TOOLS_VERIFY overrides x402 agentToolsVerify', async () => {
+    const prev = process.env.CLEARING_AGENT_TOOLS_VERIFY;
+    process.env.CLEARING_AGENT_TOOLS_VERIFY = 'atc_override_descriptor';
+    try {
+      const ctx = makeCtx();
+      const res = await handleExtract(new Request('https://clearing.rippel.ai/.well-known/x402'), ctx);
+      const body = (await res.json()) as { agentToolsVerify: string };
+      expect(body.agentToolsVerify).toBe('atc_override_descriptor');
+    } finally {
+      if (prev === undefined) delete process.env.CLEARING_AGENT_TOOLS_VERIFY;
+      else process.env.CLEARING_AGENT_TOOLS_VERIFY = prev;
+    }
+  });
+
+  it('does not change rippel agent-tools-verify.txt claim', async () => {
+    const ctx = makeCtx();
+    const res = await handleExtract(
+      new Request('https://clearing.rippel.ai/.well-known/agent-tools-verify.txt'),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9');
+  });
+
+  it('railway agent-tools-verify.txt stays the railway file claim', async () => {
+    const prev = process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY;
+    delete process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY;
+    try {
+      const ctx = makeCtx();
+      const res = await handleExtract(
+        new Request('https://clearing-production-9968.up.railway.app/.well-known/agent-tools-verify.txt'),
+        ctx,
+      );
+      expect(await res.text()).toBe('atc_r6O9K2gBe1-IuHPkirXKsiJ4TQSYNIkx');
+    } finally {
+      if (prev === undefined) delete process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY;
+      else process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY = prev;
+    }
+  });
+
   it('does not fetch private extract targets', async () => {
     const ctx = makeCtx();
     const res = await handleExtract(
