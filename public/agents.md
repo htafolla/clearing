@@ -19,4 +19,4 @@ blocked=true → no body, no charge.
 pin: GET /v1/pin?agentId={id} — $0.01 USDC. Pay pin + live MCP/hangar store → listed.
 listed: GET /v1/listed (public, unpaid)
 
-Public unpaid: /agents.md /llms.txt /.well-known/agent.json /v1/listed
+Public unpaid: /agents.md /llms.txt /.well-known/agent.json /.well-known/x402 /.well-known/agent-tools-verify.txt /v1/listed

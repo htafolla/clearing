@@ -10,6 +10,11 @@ v1 sells one metered artifact: a receipted web extract. It is a Grok skill + pro
 - Policy: [context/policy.md](./context/policy.md)
 - Constraints: [CONSTRAINTS.md](./CONSTRAINTS.md)
 
+Public unpaid well-known:
+
+- `GET /.well-known/x402` — JSON including `agentToolsVerify`. Default token is `public/.well-known/x402`; override with `CLEARING_AGENT_TOOLS_VERIFY` or `AGENT_TOOLS_VERIFY_DESCRIPTOR`.
+- `GET /.well-known/agent-tools-verify.txt` — rippel.ai ATC file claim (`atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9`). Do not change that file. Railway hostname uses `AGENT_TOOLS_VERIFY_TOKEN_RAILWAY` instead.
+
 Local:
 
 ```bash

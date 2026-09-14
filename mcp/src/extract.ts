@@ -25,18 +25,10 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
     return json(agentCard(ctx));
   }
   if (url.pathname === '/.well-known/agent-tools-verify.txt') {
-    try {
-      const body = readFileSync(join(PUBLIC_DIR, '.well-known/agent-tools-verify.txt'), 'utf8');
-      return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-    } catch {
-      return new Response('missing', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-    }
+    return agentToolsVerifyTxt(url);
   }
   if (url.pathname === '/.well-known/x402') {
-    const token =
-      process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY?.trim() ||
-      'atc_rnW0Dzjm-5VcJzsY7wGmYtjr1jtncK69';
-    return json({ agentToolsVerify: token });
+    return json(x402WellKnown());
   }
   if (url.pathname !== '/v1/extract') {
     return json({ error: 'not found' }, 404);
@@ -218,6 +210,51 @@ function json(body: unknown, status = 200, extraHeaders?: Record<string, string>
     if (!v) delete headers[k];
   }
   return new Response(JSON.stringify(body), { status, headers });
+}
+
+const RIPPEL_VERIFY_TOKEN = 'atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9';
+const RAILWAY_VERIFY_TOKEN = 'atc_r6O9K2gBe1-IuHPkirXKsiJ4TQSYNIkx';
+const X402_DESCRIPTOR_TOKEN = 'atc_rnW0Dzjm-5VcJzsY7wGmYtjr1jtncK69';
+
+/** Host-aware ATC file claim. Do not overwrite the rippel.ai token in public/.well-known/agent-tools-verify.txt. */
+function agentToolsVerifyTxt(url: URL): Response {
+  const host = (url.host || '').toLowerCase();
+  const headers = { 'Content-Type': 'text/plain; charset=utf-8' };
+  if (host.includes('railway.app')) {
+    const railwayToken = process.env.AGENT_TOOLS_VERIFY_TOKEN_RAILWAY?.trim() || RAILWAY_VERIFY_TOKEN;
+    return new Response(railwayToken, { headers });
+  }
+  try {
+    const body = readFileSync(join(PUBLIC_DIR, '.well-known/agent-tools-verify.txt'), 'utf8');
+    return new Response(body, { headers });
+  } catch {
+    return new Response(RIPPEL_VERIFY_TOKEN, { headers });
+  }
+}
+
+/**
+ * GET /.well-known/x402 — ATC descriptor claim.
+ * Override with CLEARING_AGENT_TOOLS_VERIFY or AGENT_TOOLS_VERIFY_DESCRIPTOR.
+ * Do not reuse AGENT_TOOLS_VERIFY_TOKEN_RAILWAY (that is the verify.txt railway claim).
+ */
+function x402WellKnown(): Record<string, unknown> {
+  let body: Record<string, unknown> = { agentToolsVerify: X402_DESCRIPTOR_TOKEN };
+  try {
+    const raw = readFileSync(join(PUBLIC_DIR, '.well-known/x402'), 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      body = { ...body, ...(parsed as Record<string, unknown>) };
+    }
+  } catch {
+    /* default token */
+  }
+  const token = (
+    process.env.CLEARING_AGENT_TOOLS_VERIFY ||
+    process.env.AGENT_TOOLS_VERIFY_DESCRIPTOR ||
+    ''
+  ).trim();
+  if (token) body.agentToolsVerify = token;
+  return body;
 }
 
 function publicText(pathname: string): string {
