@@ -1,13 +1,16 @@
 /**
  * 8004-pin: pay $0.01 USDC to pin a live ERC-8004 identity card.
- * Successful settle lists the agent on GET /v1/listed only if the card has a live
- * HTTPS MCP or hangar store (tools / 402 / health). Identity-only is not listed.
+ * Successful settle lists the agent on GET /v1/listed|/v1/online only if the card
+ * is Groover certified, Dynamo solar PASS/citation, and has a live HTTPS MCP or
+ * hangar store (tools / 402 / health). Online = health ok within probeIntervalMs
+ * (default 15 minutes). Identity-only is not listed.
  * Returns owner, agentURI, card JSON, sha256 of the bytes. Due diligence, not a scrape.
  */
 import { createHash } from 'node:crypto';
 import { ClearingError } from './errors.js';
 import { assertPublicExtractTarget } from './origin.js';
 import { IDENTITY_REGISTRY } from './types.js';
+import { hangarCertified } from './gates.js';
 import { findLiveShop, type LiveShop } from './live-shop.js';
 import { buildQuote, buildRequirements, decodePayload, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
 import type { ClearingContext } from './context.js';
@@ -67,11 +70,13 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
   }
 
   const live = await findLiveShop(fetched.card, ctx);
-  if (live) noteListed(ctx, agentId, paymentHeader, settle.txHash, live);
+  const certified = hangarCertified(fetched.card);
+  const listable = Boolean(live && certified);
+  if (live && certified) noteListed(ctx, agentId, paymentHeader, settle.txHash, live, certified);
 
   return json({
     paid: true,
-    listed: Boolean(live),
+    listed: listable,
     chainId: 8453,
     registry,
     agentId,
@@ -83,6 +88,7 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
     txHash: settle.txHash,
     ...(live?.mcpUrl ? { mcpUrl: live.mcpUrl } : {}),
     ...(live?.storeUrl ? { storeUrl: live.storeUrl } : {}),
+    ...(certified ? { groover: certified.groover, solar: certified.solar } : {}),
   });
 }
 
@@ -171,6 +177,7 @@ function noteListed(
   paymentHeader: string,
   tx: `0x${string}` | undefined,
   live: LiveShop,
+  certified: { groover: string; solar: string },
 ): void {
   let paymentId = '';
   try {
@@ -187,6 +194,9 @@ function noteListed(
     ...(live.mcpUrl ? { mcpUrl: live.mcpUrl } : {}),
     ...(live.storeUrl ? { storeUrl: live.storeUrl } : {}),
     liveAt: live.liveAt,
+    groover: certified.groover,
+    solar: certified.solar,
+    healthAt: live.liveAt,
   });
 }
 

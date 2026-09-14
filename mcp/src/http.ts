@@ -12,6 +12,7 @@ export function isExtractPath(pathname: string): boolean {
     pathname === '/v1/pin' ||
     pathname.startsWith('/v1/pin') ||
     pathname === '/v1/listed' ||
+    pathname === '/v1/online' ||
     pathname === '/v1/witness' ||
     pathname.startsWith('/v1/witness') ||
     pathname === '/agents.md' ||
@@ -31,7 +32,7 @@ export function createExtractHttpServer(ctx: ClearingContext) {
 export async function dispatch(req: IncomingMessage, res: ServerResponse, ctx: ClearingContext): Promise<void> {
   try {
     const request = await incomingToRequest(req, ctx.config.extractBaseUrl);
-    const listed = handleListed(request, ctx.listed);
+    const listed = await handleListed(request, ctx);
     const pin = listed ? undefined : await handlePin(request, ctx);
     const witness = pin || listed ? undefined : await handleWitness(request, ctx);
     const response = listed ?? pin ?? witness ?? (await handleExtract(request, ctx));

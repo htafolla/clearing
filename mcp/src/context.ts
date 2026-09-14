@@ -124,13 +124,18 @@ function seedListed(ctx: ClearingContext): void {
   const base = Date.UTC(2026, 8, 1, 0, 0, 0);
   for (const [i, seed] of ctx.config.listedSeed.entries()) {
     if (!seed.mcpUrl && !seed.storeUrl) continue;
+    if (!seed.groover || !seed.solar) continue;
+    const at = new Date(base + i * 1000).toISOString();
     ctx.listed.add({
       agentId: seed.agentId,
       paymentId: `backfill:${seed.agentId}`,
-      pinnedAt: new Date(base + i * 1000).toISOString(),
+      pinnedAt: at,
       ...(seed.mcpUrl ? { mcpUrl: seed.mcpUrl } : {}),
       ...(seed.storeUrl ? { storeUrl: seed.storeUrl } : {}),
-      liveAt: new Date(base + i * 1000).toISOString(),
+      liveAt: at,
+      groover: seed.groover,
+      solar: seed.solar,
+      healthAt: at,
     });
   }
 }

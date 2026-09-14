@@ -116,7 +116,7 @@ function defaultListedSeed(): ListedSeed[] {
   return parseListedSeed(raw);
 }
 
-/** `86556|https://host/mcp` or `86556|mcp=https://host/mcp|store=https://host/extract`. Bare ids ignored. */
+/** `86556|https://host/mcp|groover=did:groover:…|solar=PASS`. Bare ids and shop-only rows ignored. */
 export function parseListedSeed(raw: string): ListedSeed[] {
   const rows: ListedSeed[] = [];
   const seen = new Set<number>();
@@ -129,12 +129,21 @@ export function parseListedSeed(raw: string): ListedSeed[] {
     for (const bit of bits.slice(1)) {
       const eq = bit.indexOf('=');
       const key = eq > 0 ? bit.slice(0, eq).toLowerCase() : guessShopKey(bit);
-      const url = eq > 0 ? bit.slice(eq + 1) : bit;
-      if (!isHttpsUrl(url)) continue;
-      if (key === 'mcp' || key === 'mcpurl') row.mcpUrl = url;
-      else row.storeUrl = url;
+      const value = eq > 0 ? bit.slice(eq + 1) : bit;
+      if (key === 'groover') {
+        if (value) row.groover = value;
+        continue;
+      }
+      if (key === 'solar') {
+        if (value) row.solar = value;
+        continue;
+      }
+      if (!isHttpsUrl(value)) continue;
+      if (key === 'mcp' || key === 'mcpurl') row.mcpUrl = value;
+      else row.storeUrl = value;
     }
     if (!row.mcpUrl && !row.storeUrl) continue;
+    if (!row.groover || !row.solar) continue;
     seen.add(agentId);
     rows.push(row);
   }

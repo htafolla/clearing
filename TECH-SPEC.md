@@ -174,7 +174,7 @@ Rules:
 - v1 does not buy upstream 402. Paid-origin is `blocked: true` with no charge.
 - No account. Wallet signature is identity.
 
-`GET /agents.md`, `GET /llms.txt`, `GET /.well-known/agent.json`, `GET /.well-known/x402`, `GET /.well-known/agent-tools-verify.txt`, `GET /v1/listed` are public and unpaid. `/.well-known/x402` is JSON with `agentToolsVerify` (default `public/.well-known/x402`, override `CLEARING_AGENT_TOOLS_VERIFY` / `AGENT_TOOLS_VERIFY_DESCRIPTOR`). The verify.txt file is the rippel.ai ATC claim and must stay `atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9`. Pay pin ($0.01) + live HTTPS MCP or hangar store → listed. Identity-only cards are not listed. No extra directory fee.
+`GET /agents.md`, `GET /llms.txt`, `GET /.well-known/agent.json`, `GET /.well-known/x402`, `GET /.well-known/agent-tools-verify.txt`, `GET /v1/listed`, `GET /v1/online` are public and unpaid. `/.well-known/x402` is JSON with `agentToolsVerify` (default `public/.well-known/x402`, override `CLEARING_AGENT_TOOLS_VERIFY` / `AGENT_TOOLS_VERIFY_DESCRIPTOR`). The verify.txt file is the rippel.ai ATC claim and must stay `atc_ahATpKU6I8yhcD0aIdaKZp3ONf0bjyj9`. Pay pin ($0.01) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store + online (health ok within 15 minutes, `probeIntervalMs`) → listed. Identity-only cards are not listed. Pin alone is not enough. No extra directory fee.
 
 ## 8. Discover filter (the actual moat)
 
