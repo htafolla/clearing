@@ -16,7 +16,8 @@ export function isExtractPath(pathname: string): boolean {
     pathname.startsWith('/v1/witness') ||
     pathname === '/agents.md' ||
     pathname === '/llms.txt' ||
-    pathname === '/.well-known/agent.json'
+    pathname === '/.well-known/agent.json' ||
+    pathname === '/.well-known/agent-tools-verify.txt'
   );
 }
 
