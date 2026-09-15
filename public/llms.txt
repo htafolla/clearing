@@ -4,13 +4,14 @@ Pay live x402 services. Sell receipted URL extracts. Never double-pay.
 
 extract: GET /v1/extract?url={url}&js=0|1
 pin: GET /v1/pin?agentId={id}
+blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=...
 listed: GET /v1/listed
 online: GET /v1/online
 rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store (tools / 402 / health) + online (health ok within 15 min) → listed. N=15 minutes (CLEARING_PROBE_INTERVAL_MS / probeIntervalMs). Pin alone is not enough. Identity-only / missing Groover or solar are not listed. No extra directory fee.
 chain: eip155:8453
 asset: USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-price: 0.02 | 0.05 js | pin 0.01
-payment: x402 v1 X-PAYMENT and v2 PAYMENT-SIGNATURE
+price: 0.02 | 0.05 js | pin 0.01 | blip escalator LOCKED max(5, round(5 + 550 * (mintIndex/555)**2)) ¢
+payment: x402 v1 X-PAYMENT and v2 PAYMENT-SIGNATURE · ZigZag-shaped EIP-3009 (signer:zigzag) — not marketplace
 retry: same paymentId, same signed payload, never re-sign
 identity: wallet signature; no account
 blocked: robots.txt / no-ai / paid-origin → blocked=true, no body, no charge

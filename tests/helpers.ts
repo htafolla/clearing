@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createContext, type ClearingContext, type ContextOverrides } from '../mcp/src/context.js';
-import { handleExtract } from '../mcp/src/extract.js';
+import { handleHangar } from '../mcp/src/http.js';
 import { createFacilitator, MemoryFacilitator } from '../mcp/src/facilitator.js';
 import { createSigner, FakeSigner } from '../mcp/src/signer.js';
 import { MemoryWatchlist } from '../mcp/src/watchlist.js';
@@ -66,7 +66,7 @@ export function withExtractLoopback(base: FetchFn, ctx: ClearingContext): FetchF
         method: init?.method ?? (input instanceof Request ? input.method : 'GET'),
         headers,
       });
-      return handleExtract(req, ctx);
+      return handleHangar(req, ctx);
     }
     return base(input, init);
   };

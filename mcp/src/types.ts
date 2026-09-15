@@ -38,6 +38,8 @@ export type ClearingConfig = {
   sessionToken?: string;
   /** Friend-test pin backfill. Rows without live URL + Groover + solar are ignored. */
   listedSeed: ListedSeed[];
+  /** Deployed Blips ERC-721 on Base (optional until Blaze deploys). */
+  blipsNft?: HexAddress;
 };
 
 export type ListedSeed = {
@@ -75,7 +77,20 @@ export type PaymentRequirements = {
   description: string;
   mimeType: 'application/json';
   maxTimeoutSeconds: number;
-  extra: { name: 'USDC'; version: '2' };
+  extra: PaymentExtra;
+};
+
+export type PaymentExtra = {
+  name: 'USDC';
+  version: '2';
+  signer?: 'zigzag';
+  skill?: string;
+  mintIndex?: number;
+  priceCents?: number;
+  escalator?: string;
+  formula?: string;
+  priceFinal?: boolean;
+  mintIndexSource?: 'settledPaid';
 };
 
 export type X402Quote = {

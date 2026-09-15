@@ -20,7 +20,8 @@
     "http": "tsx mcp/src/http.ts",
     "mcp-http": "tsx mcp/src/mcp-http.ts",
     "start": "tsx mcp/src/mcp-http.ts",
-    "extract": "tsx services/extract/worker.ts"
+    "extract": "tsx services/extract/worker.ts",
+    "postinstall": "node scripts/wear-clearing-mcp.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
