@@ -30,6 +30,11 @@ import type { ClearingContext } from './context.js';
 import type { HexAddress, PayloadBody, PaymentRequirements } from './types.js';
 
 const TOTAL_SUPPLY_SEL = '0x18160ddd';
+const BALANCE_OF_SEL = '0x70a08231';
+const TOKEN_OF_OWNER_BY_INDEX_SEL = '0x2f745c59';
+const TOKEN_URI_SEL = '0xc87b56dd';
+const OWNER_OF_SEL = '0x6352211e';
+const MAX_OWNED_ENUMERATE = 555;
 
 export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Response | undefined> {
   const url = new URL(req.url);
@@ -232,6 +237,44 @@ async function nextMintIndex(ctx: ClearingContext): Promise<number> {
 async function chainTotalSupply(ctx: ClearingContext): Promise<number | undefined> {
   const nft = ctx.config.blipsNft;
   if (!nft) return undefined;
+  const raw = await ethCall(ctx, nft, TOTAL_SUPPLY_SEL);
+  if (!raw) return undefined;
+  return Number(BigInt(raw));
+}
+
+type ChainOwned = { tokenId: number; ownerWallet: HexAddress; tokenURI: string };
+
+/** Enumerate Blips ERC-721 via eth_call. undefined = no collection / RPC miss (fall back to minter). */
+async function chainTokensOf(ctx: ClearingContext, owner: HexAddress): Promise<ChainOwned[] | undefined> {
+  const nft = ctx.config.blipsNft;
+  if (!nft) return undefined;
+  const balanceRaw = await ethCall(ctx, nft, `${BALANCE_OF_SEL}${padAddress(owner)}`);
+  if (!balanceRaw) return undefined;
+  const balance = Number(BigInt(balanceRaw));
+  if (!Number.isFinite(balance) || balance <= 0) return [];
+  const n = Math.min(balance, MAX_OWNED_ENUMERATE);
+  const out: ChainOwned[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const idRaw = await ethCall(ctx, nft, `${TOKEN_OF_OWNER_BY_INDEX_SEL}${padAddress(owner)}${padUint(i)}`);
+    if (!idRaw) continue;
+    const tokenId = Number(BigInt(idRaw));
+    if (!Number.isFinite(tokenId) || tokenId < 0) continue;
+    const [uriRaw, ownerRaw] = await Promise.all([
+      ethCall(ctx, nft, `${TOKEN_URI_SEL}${padUint(tokenId)}`),
+      ethCall(ctx, nft, `${OWNER_OF_SEL}${padUint(tokenId)}`),
+    ]);
+    const onchainOwner = ownerRaw ? addressFromWord(ownerRaw) : undefined;
+    if (onchainOwner && onchainOwner !== owner) continue;
+    out.push({
+      tokenId,
+      ownerWallet: onchainOwner ?? owner,
+      tokenURI: uriRaw ? decodeAbiString(uriRaw) : '',
+    });
+  }
+  return out;
+}
+
+async function ethCall(ctx: ClearingContext, to: HexAddress, data: string): Promise<string | undefined> {
   const rpcs = [process.env.CLEARING_RPC_URL?.trim(), 'https://mainnet.base.org', 'https://1rpc.io/base'].filter(
     (u): u is string => Boolean(u),
   );
@@ -244,17 +287,40 @@ async function chainTotalSupply(ctx: ClearingContext): Promise<number | undefine
           jsonrpc: '2.0',
           id: 1,
           method: 'eth_call',
-          params: [{ to: nft, data: TOTAL_SUPPLY_SEL }, 'latest'],
+          params: [{ to, data }, 'latest'],
         }),
         signal: AbortSignal.timeout(ctx.config.probeTimeoutMs),
       });
       const body = (await res.json()) as { result?: string };
-      if (body.result && body.result !== '0x') return Number(BigInt(body.result));
+      if (body.result && body.result !== '0x') return body.result;
     } catch {
       /* next rpc */
     }
   }
   return undefined;
+}
+
+function padAddress(addr: HexAddress): string {
+  return addr.slice(2).toLowerCase().padStart(64, '0');
+}
+
+function padUint(n: number): string {
+  return n.toString(16).padStart(64, '0');
+}
+
+function addressFromWord(word: string): HexAddress | undefined {
+  const raw = `0x${word.slice(-40)}`;
+  return isHexAddress(raw) ? normalizeAddress(raw) : undefined;
+}
+
+function decodeAbiString(hex: string): string {
+  const h = hex.startsWith('0x') ? hex.slice(2) : hex;
+  if (h.length < 128) return '';
+  const offset = Number.parseInt(h.slice(0, 64), 16);
+  const start = offset * 2;
+  const len = Number.parseInt(h.slice(start, start + 64), 16);
+  if (!Number.isFinite(len) || len < 0 || len > 10_000) return '';
+  return Buffer.from(h.slice(start + 64, start + 64 + len * 2), 'hex').toString('utf8');
 }
 
 function ownerFrom(payload: PayloadBody, owner?: string): HexAddress | undefined {
@@ -301,16 +367,40 @@ async function readInput(
 async function owned(url: URL, ctx: ClearingContext): Promise<Response> {
   const wallet = url.searchParams.get('wallet') ?? url.searchParams.get('owner') ?? '';
   if (!isHexAddress(wallet)) return json({ error: 'wallet is required' }, 400);
-  const tokens = await ctx.blipsMinter.tokensOf(normalizeAddress(wallet));
-  const rows = tokens.map((t) => {
-    const receipt = ctx.blips.get(t.mintIndex);
+  const owner = normalizeAddress(wallet);
+
+  let minterTokens: Awaited<ReturnType<typeof ctx.blipsMinter.tokensOf>> = [];
+  try {
+    minterTokens = await ctx.blipsMinter.tokensOf(owner);
+  } catch {
+    minterTokens = [];
+  }
+  const minterById = new Map(minterTokens.map((t) => [t.tokenId, t]));
+
+  const chainTokens = await chainTokensOf(ctx, owner);
+  const source = chainTokens ? 'chain' : 'chain-minter';
+  const ids = chainTokens ?? minterTokens.map((t) => ({
+    tokenId: t.tokenId,
+    ownerWallet: t.ownerWallet,
+    tokenURI: t.tokenURI,
+  }));
+
+  const rows = ids.map((t) => {
+    const receipt = ctx.blips.get(t.tokenId);
+    const minter = minterById.get(t.tokenId);
+    const mintTx = receipt?.mintTx ?? minter?.mintTx;
+    const tokenURI = t.tokenURI || receipt?.tokenURI || minter?.tokenURI || '';
     return {
       tokenId: t.tokenId,
-      ownerWallet: t.ownerWallet,
-      mintTx: t.mintTx,
-      tokenURI: t.tokenURI,
-      mintIndex: t.mintIndex,
-      basescan: `https://basescan.org/tx/${t.mintTx}`,
+      ownerWallet: t.ownerWallet || receipt?.ownerWallet || minter?.ownerWallet || owner,
+      mintTx,
+      tokenURI,
+      mintIndex: receipt?.mintIndex ?? minter?.mintIndex ?? t.tokenId,
+      basescan: mintTx
+        ? `https://basescan.org/tx/${mintTx}`
+        : ctx.config.blipsNft
+          ? `https://basescan.org/nft/${ctx.config.blipsNft}/${t.tokenId}`
+          : undefined,
       picture: receipt?.picture,
       videoUrl: receipt?.videoUrl,
       imageUrl: receipt?.imageUrl,
@@ -320,8 +410,8 @@ async function owned(url: URL, ctx: ClearingContext): Promise<Response> {
     };
   });
   return json({
-    wallet: normalizeAddress(wallet),
-    source: 'chain-minter',
+    wallet: owner,
+    source,
     market: false,
     tokens: rows,
   });

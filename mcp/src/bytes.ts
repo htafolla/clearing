@@ -31,6 +31,10 @@ export function isHexAddress(value: string): value is `0x${string}` {
   return /^0x[a-fA-F0-9]{40}$/.test(value);
 }
 
+export function isHexBytes32(value: string): value is `0x${string}` {
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
 export function normalizeAddress(value: string): `0x${string}` {
   if (!isHexAddress(value)) {
     throw new Error(`invalid address: ${value}`);

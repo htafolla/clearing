@@ -10,6 +10,21 @@ import { MemoryFacilitator } from '../mcp/src/facilitator.js';
 import { encodePayload, V2_REQUIRED_HEADER } from '../mcp/src/x402.js';
 import { makeCtx, PAYER_A } from './helpers.js';
 
+function uintWord(n: number): string {
+  return `0x${n.toString(16).padStart(64, '0')}`;
+}
+
+function addrWord(addr: string): string {
+  return `0x${addr.slice(2).toLowerCase().padStart(64, '0')}`;
+}
+
+function abiString(value: string): string {
+  const hex = Buffer.from(value, 'utf8').toString('hex');
+  const len = (hex.length / 2).toString(16).padStart(64, '0');
+  const padded = hex.padEnd(Math.ceil(hex.length / 64) * 64, '0');
+  return `0x${(32).toString(16).padStart(64, '0')}${len}${padded}`;
+}
+
 function blipUrl(picture = 'still', brief = 'night alley still', owner = PAYER_A): string {
   const q = new URLSearchParams({ picture, brief, owner });
   return `https://api.clearing.dev/v1/blip?${q.toString()}`;
@@ -175,6 +190,71 @@ describe('hangar skill blip', () => {
     expect(body.tokens[0]?.tokenId).toBe(0);
     expect(body.tokens[0]?.mintTx).toMatch(/^0x/);
     expect(body.tokens[0]?.videoUrl).toMatch(/\.mp4$/);
+  });
+
+  it('My Account lists chain NFTs when minter and hangar receipts are empty', async () => {
+    const nft = '0x978295330Ba861b2A45432F0942Dde61679fDDBd' as const;
+    const wallet = '0x00552afc18275c7723dad2EC95d77308738cE07e' as const;
+    const ctx = makeCtx(
+      {},
+      {
+        config: { blipsNft: nft },
+        blipsMinter: new MemoryBlipsMinter(),
+        fetch: async (input, init) => {
+          const body = JSON.parse(String(init?.body ?? '{}')) as {
+            method?: string;
+            params?: Array<{ data?: string }>;
+          };
+          if (body.method !== 'eth_call') {
+            return Response.json({ error: { message: `unexpected ${body.method}` } }, { status: 500 });
+          }
+          const data = body.params?.[0]?.data ?? '';
+          const sel = data.slice(0, 10).toLowerCase();
+          if (sel === '0x70a08231') return Response.json({ result: uintWord(4) });
+          if (sel === '0x2f745c59') {
+            const index = Number(BigInt(`0x${data.slice(74)}`));
+            return Response.json({ result: uintWord(index) });
+          }
+          if (sel === '0xc87b56dd') {
+            const tokenId = Number(BigInt(`0x${data.slice(10)}`));
+            return Response.json({ result: abiString(`https://api.clearing.dev/v1/blip/metadata/${tokenId}`) });
+          }
+          if (sel === '0x6352211e') return Response.json({ result: addrWord(wallet) });
+          return Response.json({ error: { message: `unexpected sel ${sel}` } }, { status: 500 });
+        },
+      },
+    );
+    ctx.blips.add({
+      mintIndex: 0,
+      tokenId: 0,
+      ownerWallet: wallet,
+      mintTx: `0x${'11'.repeat(32)}`,
+      paymentId: 'receipt-0',
+      priceCents: 5,
+      picture: 'still',
+      brief: 'night alley still',
+      videoUrl: 'https://cdn.example/0.mp4',
+      durationSec: 4.44,
+      plantVersion: 'test',
+      tokenURI: 'https://api.clearing.dev/v1/blip/metadata/0',
+      settledAt: '2026-09-15T00:00:00.000Z',
+    });
+    const res = await handleHangar(
+      new Request(`https://api.clearing.dev/v1/blip/owned?wallet=${wallet}`),
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      source: string;
+      tokens: Array<{ tokenId: number; mintTx?: string; videoUrl?: string; tokenURI: string }>;
+    };
+    expect(body.source).toBe('chain');
+    expect(body.tokens.map((t) => t.tokenId)).toEqual([0, 1, 2, 3]);
+    expect(await ctx.blipsMinter.tokensOf(wallet)).toEqual([]);
+    expect(body.tokens[0]?.videoUrl).toMatch(/\.mp4$/);
+    expect(body.tokens[0]?.mintTx).toMatch(/^0x[a-f0-9]{64}$/);
+    expect(body.tokens[1]?.videoUrl).toBeUndefined();
+    expect(body.tokens[1]?.tokenURI).toBe('https://api.clearing.dev/v1/blip/metadata/1');
   });
 
   it('tokenURI metadata includes 4.44s media + receipt fields', async () => {
