@@ -52,6 +52,14 @@ Fail closed. Caps here are a second fuse. The rail is authoritative.
 - Never list a registration-only ERC-8004 id.
 - Do not scrape the 500k registry on the hot path.
 
+## Blip hangar
+
+- Skill `blip` quotes x402 **before** work. Failed gen → no charge.
+- Price is the LOCKED quadratic escalator. Do not invent ¢. Do not use the rejected flat `5 + floor(n/100)`.
+- Pay is ZigZag-**shaped** EIP-3009 (`signer:zigzag`). Not a marketplace. Hosted `/sign` is not the shop path.
+- Ownership is the Base Blips NFT to the payer wallet. Soft-DB-only owned is a defect.
+- No Dist. No market v0.
+
 ## Not this product
 
-Wallet, chain, token, faucet, job board, Mandate.sol, Escrow.sol, multi-chain, eighth `xray-*` MCP.
+Wallet, faucet, job board, Mandate.sol, Escrow.sol, multi-chain, eighth `xray-*` MCP, ZigZag marketplace.

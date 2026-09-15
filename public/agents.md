@@ -17,7 +17,8 @@ Unpaid → 402. Paid → 200 JSON with markdown, textHash.
 blocked=true → no body, no charge.
 
 pin: GET /v1/pin?agentId={id} — $0.01 USDC. Pay pin + Groover + solar + live MCP/hangar store + online → listed.
+blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=... — hangar skill. 402 quote (ZigZag-shaped EIP-3009, not marketplace) then factory plant `blip` (xray 3e10150) + Base Blips ERC-721 to the payer. Escalator LOCKED: price¢ = max(5, round(5 + 550 * (mintIndex/555)**2)). mintIndex = settled paid count / collection totalSupply. No market v0. No Dist.
 listed: GET /v1/listed (public, unpaid)
 online: GET /v1/online (same gates; health ok within 15 min)
 
-Public unpaid: /agents.md /llms.txt /.well-known/agent.json /.well-known/x402 /.well-known/agent-tools-verify.txt /v1/listed /v1/online
+Public unpaid: /agents.md /llms.txt /.well-known/agent.json /.well-known/x402 /.well-known/agent-tools-verify.txt /v1/listed /v1/online /v1/blip/owned /v1/blip/metadata/:id

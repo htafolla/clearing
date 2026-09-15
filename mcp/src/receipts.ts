@@ -27,6 +27,7 @@ export function statusPayload(ctx: ClearingContext): Record<string, unknown> {
     perTxCapUsd: ctx.config.perTxCapUsd,
     confirmAboveUsd: ctx.config.confirmAboveUsd,
     extractEndpoint: `${ctx.config.extractBaseUrl}/v1/extract`,
+    blipEndpoint: `${ctx.config.extractBaseUrl}/v1/blip`,
     agentCardUrl: `${ctx.config.extractBaseUrl}/.well-known/agent.json`,
     lastReceipts: ctx.ledger.list({ limit: 10 }),
     fundedHint:

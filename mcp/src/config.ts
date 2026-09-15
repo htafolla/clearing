@@ -107,7 +107,14 @@ export function defaultConfig(overrides: Partial<ClearingConfig> = {}): Clearing
     soakFromAddresses: soak,
     sessionToken: overrides.sessionToken ?? env('CLEARING_SESSION_TOKEN'),
     listedSeed: overrides.listedSeed ?? defaultListedSeed(),
+    blipsNft: parseOptionalAddress(overrides.blipsNft ?? env('BLIPS_NFT') ?? env('BLIPS_NFT_ADDRESS')),
   };
+}
+
+function parseOptionalAddress(raw: string | undefined): import('./types.js').HexAddress | undefined {
+  if (!raw) return undefined;
+  if (!isHexAddress(raw)) fail('config', 'BLIPS_NFT must be a 20-byte hex address');
+  return normalizeAddress(raw);
 }
 
 function defaultListedSeed(): ListedSeed[] {

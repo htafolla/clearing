@@ -29,6 +29,7 @@ export function buildRequirements(opts: {
   payTo: HexAddress;
   resource: string;
   description: string;
+  extra?: Omit<import('./types.js').PaymentExtra, 'name' | 'version'>;
 }): PaymentRequirements {
   return {
     scheme: 'exact',
@@ -40,7 +41,7 @@ export function buildRequirements(opts: {
     description: opts.description,
     mimeType: 'application/json',
     maxTimeoutSeconds: 60,
-    extra: { name: 'USDC', version: '2' },
+    extra: { name: 'USDC', version: '2', ...opts.extra },
   };
 }
 
@@ -122,7 +123,11 @@ function asRequirements(raw: unknown): PaymentRequirements | undefined {
     description: String(r.description ?? ''),
     mimeType: 'application/json',
     maxTimeoutSeconds: Number(r.maxTimeoutSeconds ?? 60),
-    extra: { name: 'USDC', version: '2' },
+    extra: {
+      name: 'USDC',
+      version: '2',
+      ...(typeof r.extra === 'object' && r.extra !== null ? (r.extra as Record<string, unknown>) : {}),
+    } as PaymentRequirements['extra'],
   };
 }
 

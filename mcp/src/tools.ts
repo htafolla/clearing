@@ -7,6 +7,7 @@ import { discover } from './discover.js';
 import { ClearingError } from './errors.js';
 import { fetchPaid } from './pay.js';
 import { listReceipts, statusPayload } from './receipts.js';
+import { blipPriceUsd } from './blips-escalator.js';
 import type { ClearingContext } from './context.js';
 
 const DiscoverSchema = z.object({
@@ -36,6 +37,17 @@ const FetchPaidSchema = z.object({
 const ReceiptsSchema = z.object({
   since: z.string().optional(),
   paymentId: z.string().optional(),
+});
+
+const BlipSchema = z.object({
+  picture: z.string(),
+  brief: z.string(),
+  style: z.string().optional(),
+  owner: z.string().optional(),
+  dryRun: z.boolean().optional(),
+  paymentId: z.string().uuid().optional(),
+  approved: z.boolean().optional(),
+  maxUsd: z.number().positive().optional(),
 });
 
 export const TOOL_DEFINITIONS = [
@@ -102,6 +114,25 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    name: 'blip',
+    description:
+      'Mint a 4.44s Blip at the hangar: x402 quote then factory plant blip + Base ERC-721 to the payer wallet. picture=still|motion:<id>. Escalator LOCKED quadratic. dry_run defaults true. Not a marketplace.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        picture: { type: 'string', description: 'still or motion:<id> (orb swirl snap waves spark)' },
+        brief: { type: 'string' },
+        style: { type: 'string' },
+        owner: { type: 'string', description: 'Payer wallet if the payload has no eip3009.from' },
+        dryRun: { type: 'boolean', description: 'Default true. No spend when true.' },
+        paymentId: { type: 'string' },
+        approved: { type: 'boolean' },
+        maxUsd: { type: 'number' },
+      },
+      required: ['picture', 'brief'],
+    },
+  },
 ] as const;
 
 export const TOOL_NAMES = TOOL_DEFINITIONS.map((t) => t.name);
@@ -151,6 +182,25 @@ export async function handleTool(
     case 'receipts': {
       const parsed = ReceiptsSchema.parse(a);
       return listReceipts(parsed, ctx);
+    }
+    case 'blip': {
+      const parsed = BlipSchema.parse(a);
+      const mintIndex = ctx.blips.count();
+      const price = blipPriceUsd(mintIndex);
+      const params = new URLSearchParams({ picture: parsed.picture, brief: parsed.brief });
+      if (parsed.style) params.set('style', parsed.style);
+      if (parsed.owner) params.set('owner', parsed.owner);
+      const blipUrl = `${ctx.config.extractBaseUrl}/v1/blip?${params.toString()}`;
+      return fetchPaid(
+        {
+          url: blipUrl,
+          maxUsd: parsed.maxUsd ?? Math.max(price, 0.05),
+          paymentId: parsed.paymentId,
+          dryRun: parsed.dryRun,
+          approved: parsed.approved,
+        },
+        ctx,
+      );
     }
     default:
       throw new ClearingError('unknown_tool', `Unknown tool: ${name}`, 404);

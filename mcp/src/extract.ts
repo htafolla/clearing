@@ -267,6 +267,7 @@ function publicText(pathname: string): string {
 extract: GET /v1/extract?url={url}&js=0|1
 witness: GET /v1/witness?url={url}
 pin: GET /v1/pin?agentId={id}
+blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=...
 listed: GET /v1/listed
 online: GET /v1/online
 rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store + online (health ok within 15 min) → listed. Pin alone is not enough. Identity-only cards are not listed. No extra directory fee.
@@ -275,20 +276,22 @@ asset: USDC
 retry: same paymentId, never re-sign
 `;
     }
-    return `# Clearing\nExtract: GET /v1/extract\nChain: Base 8453 USDC\nRetry: same paymentId\n`;
+    return `# Clearing\nExtract: GET /v1/extract\nBlip: GET /v1/blip\nChain: Base 8453 USDC\nRetry: same paymentId\n`;
   }
 }
 
 function agentCard(ctx: ClearingContext): Record<string, unknown> {
   return {
     name: 'Clearing',
-    description: 'Receipted URL extract + ERC-8004 pin. Pay pin → listed. Pay live x402 only.',
+    description:
+      'Receipted URL extract + ERC-8004 pin + Blips hangar. Pay pin → listed. Pay live x402 only. Blip = 4.44s plant + Base NFT.',
     endpoints: {
       http: `${ctx.config.extractBaseUrl}/v1/extract`,
       pin: `${ctx.config.extractBaseUrl}/v1/pin`,
       listed: `${ctx.config.extractBaseUrl}/v1/listed`,
       online: `${ctx.config.extractBaseUrl}/v1/online`,
       witness: `${ctx.config.extractBaseUrl}/v1/witness`,
+      blip: `${ctx.config.extractBaseUrl}/v1/blip`,
     },
     payment: {
       chainId: ctx.config.chainId,

@@ -14,7 +14,7 @@ describe('MCP product surface', () => {
   });
 
   it('tools are unprefixed; Grok namespaces as clearing__*', () => {
-    expect(TOOL_NAMES).toEqual(['status', 'discover', 'extract', 'fetch_paid', 'receipts']);
+    expect(TOOL_NAMES).toEqual(['status', 'discover', 'extract', 'fetch_paid', 'receipts', 'blip']);
     for (const name of TOOL_NAMES) {
       expect(name.includes('__')).toBe(false);
       expect(canonicalToolName(`clearing__${name}`)).toBe(name);

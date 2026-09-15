@@ -12,6 +12,9 @@ import {
   type SettlementOracle,
 } from './settlement.js';
 import { FileListedBoard, MemoryListedBoard, listedPath, type ListedBoard } from './listed.js';
+import { createBlipPlant, FakeBlipPlant, type BlipPlant } from './blips-plant.js';
+import { createBlipsMinter, MemoryBlipsMinter, type BlipsMinter } from './blips-nft.js';
+import { FileBlipsStore, MemoryBlipsStore, blipsPath, type BlipsStore } from './blips-store.js';
 import { decodePayload } from './x402.js';
 import type { ClearingConfig, FetchFn } from './types.js';
 
@@ -28,6 +31,9 @@ export type ClearingContext = {
   watchlist: Watchlist;
   settlements: SettlementOracle;
   listed: ListedBoard;
+  blips: BlipsStore;
+  blipPlant: BlipPlant;
+  blipsMinter: BlipsMinter;
   renderer?: JsRenderer;
   resolveHost: (hostname: string) => Promise<string[]>;
   liveDiscoverOrigins: () => Set<string>;
@@ -45,6 +51,9 @@ export type ContextOverrides = {
   watchlist?: Watchlist;
   settlements?: SettlementOracle;
   listed?: ListedBoard;
+  blips?: BlipsStore;
+  blipPlant?: BlipPlant;
+  blipsMinter?: BlipsMinter;
   renderer?: JsRenderer;
   resolveHost?: (hostname: string) => Promise<string[]>;
   persist?: boolean;
@@ -81,6 +90,14 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
       cardUrl: `${base}/.well-known/agent.json`,
       failCount: 0,
     });
+    watchlist.upsert({
+      id: 'self-blip',
+      origin: base,
+      url: `${base}/v1/blip?picture=still&brief=factory-blip`,
+      category: 'api',
+      cardUrl: `${base}/.well-known/agent.json`,
+      failCount: 0,
+    });
   }
   const ctx: ClearingContext = {
     config,
@@ -101,6 +118,15 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
     listed:
       overrides.listed ??
       (overrides.persist ? new FileListedBoard(listedPath(config.dataDir)) : new MemoryListedBoard()),
+    blips:
+      overrides.blips ??
+      (overrides.persist ? new FileBlipsStore(blipsPath(config.dataDir)) : new MemoryBlipsStore()),
+    blipPlant:
+      overrides.blipPlant ??
+      (config.allowFake ? new FakeBlipPlant() : createBlipPlant({ fetchFn: overrides.fetch, allowFake: false })),
+    blipsMinter:
+      overrides.blipsMinter ??
+      (config.allowFake ? new MemoryBlipsMinter() : createBlipsMinter({ fetchFn: overrides.fetch, allowFake: false })),
     renderer: overrides.renderer,
     resolveHost: overrides.resolveHost ?? (async (hostname) => {
       const { promises: dns } = await import('node:dns');
