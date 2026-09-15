@@ -3,7 +3,7 @@
  * Pay settle gates mint to the payer wallet. Keys stay on the minter rail.
  */
 import { createHash } from 'node:crypto';
-import { isHexAddress, normalizeAddress } from './bytes.js';
+import { isHexBytes32, normalizeAddress } from './bytes.js';
 import { ClearingError } from './errors.js';
 import type { HexAddress } from './types.js';
 
@@ -83,7 +83,7 @@ export class HttpBlipsMinter implements BlipsMinter {
       throw new ClearingError('nft_mint', `blips minter ${res.status}: ${text.slice(0, 200)}`, 502);
     }
     const json = (await res.json()) as { tokenId?: number; mintTx?: string; ownerWallet?: string };
-    if (typeof json.tokenId !== 'number' || !json.mintTx || !isHexAddress(json.mintTx)) {
+    if (typeof json.tokenId !== 'number' || !json.mintTx || !isHexBytes32(json.mintTx)) {
       throw new ClearingError('nft_mint', 'blips minter missing tokenId/mintTx', 502);
     }
     return {
