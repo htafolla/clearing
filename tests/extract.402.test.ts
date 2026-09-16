@@ -6,7 +6,7 @@ import { handleTool } from '../mcp/src/tools.js';
 import { V1_PAYMENT_HEADER, V2_REQUIRED_HEADER, decodePayload } from '../mcp/src/x402.js';
 import { MemoryFacilitator } from '../mcp/src/facilitator.js';
 import { FakeSigner } from '../mcp/src/signer.js';
-import { EXAMPLE_HTML, makeCtx } from './helpers.js';
+import { assertBaseUsdcEip712, EXAMPLE_HTML, makeCtx } from './helpers.js';
 
 function extractUrl(page = 'https://example.com'): string {
   return `https://api.clearing.dev/v1/extract?url=${encodeURIComponent(page)}`;
@@ -17,10 +17,13 @@ describe('extract 402', () => {
     const ctx = makeCtx();
     const res = await handleExtract(new Request(extractUrl()), ctx);
     expect(res.status).toBe(402);
-    const body = (await res.json()) as { accepts: Array<{ asset: string; network: string; payTo: string; maxAmountRequired: string }> };
+    const body = (await res.json()) as {
+      accepts: Array<{ asset: string; network: string; payTo: string; maxAmountRequired: string; extra: { name: string; version: string } }>;
+    };
     expect(body.accepts[0]?.network).toBe('eip155:8453');
     expect(body.accepts[0]?.asset.toLowerCase()).toBe('0x833589fcd6edb6e08f4c7c32d4f71b54bda02913');
     expect(body.accepts[0]?.maxAmountRequired).toBe('20000');
+    assertBaseUsdcEip712(body.accepts[0]?.extra);
     expect(res.headers.get(V2_REQUIRED_HEADER)).toBeTruthy();
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
   });
@@ -28,7 +31,7 @@ describe('extract 402', () => {
   it('paid extract → 200 + textHash', async () => {
     const ctx = makeCtx();
     const unpaid = await handleExtract(new Request(extractUrl()), ctx);
-    const quote = (await unpaid.json()) as { accepts: [{ maxAmountRequired: string; payTo: string; resource: string; asset: string; network: string; scheme: 'exact'; description: string; mimeType: 'application/json'; maxTimeoutSeconds: number; extra: { name: 'USDC'; version: '2' } }] };
+    const quote = (await unpaid.json()) as { accepts: [{ maxAmountRequired: string; payTo: string; resource: string; asset: string; network: string; scheme: 'exact'; description: string; mimeType: 'application/json'; maxTimeoutSeconds: number; extra: { name: 'USD Coin'; version: '2' } }] };
     const signed = await ctx.signer.sign({
       paymentId: randomUUID(),
       quote: quote.accepts[0],

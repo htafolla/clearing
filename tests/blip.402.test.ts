@@ -8,7 +8,7 @@ import { MemoryBlipsMinter } from '../mcp/src/blips-nft.js';
 import { blipPriceCents } from '../mcp/src/blips-escalator.js';
 import { MemoryFacilitator } from '../mcp/src/facilitator.js';
 import { encodePayload, V2_REQUIRED_HEADER } from '../mcp/src/x402.js';
-import { makeCtx, PAYER_A } from './helpers.js';
+import { assertBaseUsdcEip712, makeCtx, PAYER_A } from './helpers.js';
 
 function uintWord(n: number): string {
   return `0x${n.toString(16).padStart(64, '0')}`;
@@ -67,11 +67,20 @@ describe('hangar skill blip', () => {
       accepts: Array<{
         maxAmountRequired: string;
         network: string;
-        extra: { signer: string; formula: string; priceCents: number; mintIndex: number; priceFinal: boolean };
+        extra: {
+          name: string;
+          version: string;
+          signer: string;
+          formula: string;
+          priceCents: number;
+          mintIndex: number;
+          priceFinal: boolean;
+        };
       }>;
     };
     expect(body.accepts[0]?.network).toBe('eip155:8453');
     expect(body.accepts[0]?.maxAmountRequired).toBe('50000');
+    assertBaseUsdcEip712(body.accepts[0]?.extra);
     expect(body.accepts[0]?.extra.signer).toBe('zigzag');
     expect(body.accepts[0]?.extra.priceCents).toBe(5);
     expect(body.accepts[0]?.extra.mintIndex).toBe(0);

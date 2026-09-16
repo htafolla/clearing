@@ -5,9 +5,16 @@ import { createFacilitator, MemoryFacilitator } from '../mcp/src/facilitator.js'
 import { createSigner, FakeSigner } from '../mcp/src/signer.js';
 import { MemoryWatchlist } from '../mcp/src/watchlist.js';
 import { MemorySettlementOracle } from '../mcp/src/settlement.js';
-import type { ClearingConfig, FetchFn, WatchlistItem } from '../mcp/src/types.js';
+import { USDC_EIP712_NAME, USDC_EIP712_VERSION, type ClearingConfig, type FetchFn, type WatchlistItem } from '../mcp/src/types.js';
+import { expect } from 'vitest';
 
 export const EXAMPLE_HTML = `<!doctype html><html><head><title>Example Domain</title></head><body><h1>Example Domain</h1><p>This domain is for use in documentation examples.</p></body></html>`;
+
+export function assertBaseUsdcEip712(extra: { name?: string; version?: string } | undefined): void {
+  expect(extra?.name).toBe(USDC_EIP712_NAME);
+  expect(extra?.version).toBe(USDC_EIP712_VERSION);
+  expect(extra?.name).not.toBe('USDC');
+}
 
 export const PAY_TO = '0x0000000000000000000000000000000000000402' as const;
 export const PAYER_A = '0x0000000000000000000000000000000000000a01' as const;

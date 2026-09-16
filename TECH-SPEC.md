@@ -148,7 +148,7 @@ No bootstrap tool in v1. Operator funds the rail wallet once. Status tells them 
 GET /v1/extract?url={encodeURIComponent}&js=0|1
 ```
 
-Unpaid → 402 x402 v2 (`x402Version: 2`, top-level `resource`, `accepts[].amount`, `extensions.bazaar`) with USDC Base quote (`extractPriceUsd` or 0.05 if `js=1`). Witness, pin, and blip use the same shared `buildQuote` challenge shape. ZigZag still signs v1 EIP-3009 payloads.
+Unpaid → 402 x402 v2 (`x402Version: 2`, top-level `resource`, `accepts[].amount`, `extensions.bazaar`) with USDC Base quote (`extractPriceUsd` or 0.05 if `js=1`). `accepts[].extra.name` is FiatTokenV2 `name()` (`USD Coin`), version `"2"` — not ticker `USDC`. Witness, pin, and blip use the same shared `buildQuote` challenge shape. ZigZag still signs v1 EIP-3009 payloads.
 
 Paid → 200:
 

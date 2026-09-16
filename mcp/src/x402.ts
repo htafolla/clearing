@@ -4,9 +4,12 @@ import { usdToAtomic } from './money.js';
 import {
   BASE_CHAIN_ID,
   USDC_BASE,
+  USDC_EIP712_NAME,
+  USDC_EIP712_VERSION,
   type BazaarExtension,
   type HexAddress,
   type PayloadBody,
+  type PaymentExtra,
   type PaymentRequirements,
   type SignedPayment,
   type X402Quote,
@@ -25,12 +28,17 @@ export function atomicToUsd(atomic: string): number {
   return Number(atomic) / 1_000_000;
 }
 
+/** EIP-712 domain for Base USDC. Forced last so ticker `USDC` cannot be advertised as `name`. */
+export function baseUsdcEip712Domain(): Pick<PaymentExtra, 'name' | 'version'> {
+  return { name: USDC_EIP712_NAME, version: USDC_EIP712_VERSION };
+}
+
 export function buildRequirements(opts: {
   amountUsd: number;
   payTo: HexAddress;
   resource: string;
   description: string;
-  extra?: Omit<import('./types.js').PaymentExtra, 'name' | 'version'>;
+  extra?: Omit<PaymentExtra, 'name' | 'version'>;
 }): PaymentRequirements {
   return {
     scheme: 'exact',
@@ -42,7 +50,7 @@ export function buildRequirements(opts: {
     description: opts.description,
     mimeType: 'application/json',
     maxTimeoutSeconds: 60,
-    extra: { name: 'USDC', version: '2', ...opts.extra },
+    extra: { ...opts.extra, ...baseUsdcEip712Domain() },
   };
 }
 
@@ -224,9 +232,8 @@ function asRequirements(raw: unknown, fallbackResource = ''): PaymentRequirement
     mimeType: 'application/json',
     maxTimeoutSeconds: Number(r.maxTimeoutSeconds ?? 60),
     extra: {
-      name: 'USDC',
-      version: '2',
       ...(typeof r.extra === 'object' && r.extra !== null ? (r.extra as Record<string, unknown>) : {}),
+      ...baseUsdcEip712Domain(),
     } as PaymentRequirements['extra'],
   };
 }

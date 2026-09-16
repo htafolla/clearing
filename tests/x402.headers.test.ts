@@ -9,7 +9,8 @@ import {
   parseQuote,
   paymentHeaderFromRequest,
 } from '../mcp/src/x402.js';
-import { PAY_TO } from './helpers.js';
+import { USDC_BASE, USDC_EIP712_NAME } from '../mcp/src/types.js';
+import { assertBaseUsdcEip712, PAY_TO } from './helpers.js';
 
 describe('x402 v1/v2 headers', () => {
   const quote = buildRequirements({
@@ -23,6 +24,25 @@ describe('x402 v1/v2 headers', () => {
     const got = parseQuote({ x402Version: 1, accepts: [quote] });
     expect(got?.payTo).toBe(PAY_TO);
     expect(got?.maxAmountRequired).toBe('20000');
+  });
+
+  it('quotes Base USDC with on-chain EIP-712 name USD Coin, not ticker USDC', () => {
+    expect(quote.asset).toBe(USDC_BASE);
+    assertBaseUsdcEip712(quote.extra);
+  });
+
+  it('fail-closed: parseQuote rewrites advertised extra.name USDC to USD Coin for Base USDC', () => {
+    const got = parseQuote({
+      accepts: [
+        {
+          ...quote,
+          extra: { name: 'USDC', version: '2' },
+        },
+      ],
+    });
+    expect(got?.asset.toLowerCase()).toBe(USDC_BASE.toLowerCase());
+    assertBaseUsdcEip712(got?.extra);
+    expect(got?.extra.name).toBe(USDC_EIP712_NAME);
   });
 
   it('parses PAYMENT-REQUIRED header', () => {

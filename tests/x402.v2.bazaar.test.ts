@@ -6,7 +6,7 @@ import { createContext } from '../mcp/src/context.js';
 import { IDENTITY_REGISTRY, type BazaarExtension, type X402Quote } from '../mcp/src/types.js';
 import { V2_REQUIRED_HEADER, buildQuote, buildRequirements, decodePayload, httpGetBazaar, parseQuote } from '../mcp/src/x402.js';
 import { MemoryFacilitator } from '../mcp/src/facilitator.js';
-import { PAY_TO, makeCtx } from './helpers.js';
+import { assertBaseUsdcEip712, PAY_TO, makeCtx } from './helpers.js';
 
 const OWNER = '0xd45CcF98D6db5A36E7CdD10ffae0b685BF27CE43';
 const CARD_URI = 'https://example.com/8004.json';
@@ -31,6 +31,7 @@ function assertV2Bazaar(quote: X402Quote, tag: string): void {
   expect(quote.accepts[0]?.scheme).toBe('exact');
   expect(quote.accepts[0]?.network).toBe('eip155:8453');
   expect(quote.accepts[0]?.amount).toBe(quote.accepts[0]?.maxAmountRequired);
+  assertBaseUsdcEip712(quote.accepts[0]?.extra);
   expect(quote.accepts[0]?.amount).toMatch(/^\d+$/);
   const bazaar = quote.extensions.bazaar;
   expect(bazaar).toBeTruthy();
