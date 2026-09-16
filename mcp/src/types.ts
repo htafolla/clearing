@@ -2,6 +2,10 @@ export const BASE_CHAIN_ID = 8453;
 export const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 export const IDENTITY_REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as const;
 export const USDC_DECIMALS = 6;
+/** FiatTokenV2 `name()` on Base. EIP-712 domain name — not ticker `USDC`. */
+export const USDC_EIP712_NAME = 'USD Coin' as const;
+/** FiatTokenV2 EIP-712 domain version. */
+export const USDC_EIP712_VERSION = '2' as const;
 export const ALWAYS_ALLOW_ORIGIN = 'api.clearing.dev';
 
 export type HexAddress = `0x${string}`;
@@ -81,8 +85,8 @@ export type PaymentRequirements = {
 };
 
 export type PaymentExtra = {
-  name: 'USDC';
-  version: '2';
+  name: typeof USDC_EIP712_NAME;
+  version: typeof USDC_EIP712_VERSION;
   signer?: 'zigzag';
   skill?: string;
   mintIndex?: number;

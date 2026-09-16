@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createContext } from '../mcp/src/context.js';
 import { handlePin } from '../mcp/src/pin.js';
 import { IDENTITY_REGISTRY } from '../mcp/src/types.js';
+import { assertBaseUsdcEip712 } from './helpers.js';
 
 const OWNER = '0xd45CcF98D6db5A36E7CdD10ffae0b685BF27CE43';
 const CARD_URI = 'https://example.com/8004.json';
@@ -39,6 +40,7 @@ describe('8004-pin', () => {
     expect(unpaid?.status).toBe(402);
 
     const quoted = (await unpaid!.json()) as { accepts: import('../mcp/src/types.js').PaymentRequirements[] };
+    assertBaseUsdcEip712(quoted.accepts[0]?.extra);
     const { encodePayload } = await import('../mcp/src/x402.js');
     const header = encodePayload({
       x402Version: 1,
@@ -105,7 +107,7 @@ describe('8004-pin', () => {
         description: 'ERC-8004 pin agentId 7',
         mimeType: 'application/json',
         maxTimeoutSeconds: 60,
-        extra: { name: 'USDC', version: '2' },
+        extra: { name: 'USD Coin', version: '2' },
       },
     });
     const withPay = await handlePin(
