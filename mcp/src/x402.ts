@@ -4,6 +4,7 @@ import { usdToAtomic } from './money.js';
 import {
   BASE_CHAIN_ID,
   USDC_BASE,
+  type BazaarExtension,
   type HexAddress,
   type PayloadBody,
   type PaymentRequirements,
@@ -45,8 +46,103 @@ export function buildRequirements(opts: {
   };
 }
 
-export function buildQuote(req: PaymentRequirements, error = 'X-PAYMENT header is required'): X402Quote {
-  return { x402Version: 1, error, accepts: [req] };
+export type BazaarDiscovery = {
+  queryParams: Record<string, string>;
+  querySchema: Record<string, { type: 'string'; description?: string }>;
+  requiredQuery: string[];
+  outputExample: Record<string, unknown>;
+  serviceName?: string;
+  tags?: string[];
+};
+
+/**
+ * Official bazaar GET shape from specs/extensions/bazaar.md (x402-foundation).
+ * `info` must validate against `schema.properties.input` (CDP facilitator).
+ */
+export function httpGetBazaar(discovery: BazaarDiscovery): BazaarExtension {
+  const queryProperties: Record<string, { type: string; description?: string }> = {};
+  for (const [key, spec] of Object.entries(discovery.querySchema)) {
+    queryProperties[key] = spec.description
+      ? { type: spec.type, description: spec.description }
+      : { type: spec.type };
+  }
+  return {
+    info: {
+      input: {
+        type: 'http',
+        method: 'GET',
+        ...(Object.keys(discovery.queryParams).length > 0 ? { queryParams: discovery.queryParams } : {}),
+      },
+      output: {
+        type: 'json',
+        example: discovery.outputExample,
+      },
+    },
+    schema: {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        input: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', const: 'http' },
+            method: { type: 'string', enum: ['GET', 'HEAD', 'DELETE'] },
+            queryParams: {
+              type: 'object',
+              properties: queryProperties,
+              ...(discovery.requiredQuery.length > 0 ? { required: discovery.requiredQuery } : {}),
+            },
+            headers: {
+              type: 'object',
+              additionalProperties: { type: 'string' },
+            },
+          },
+          required: ['type', 'method'],
+          additionalProperties: false,
+        },
+        output: {
+          type: 'object',
+          properties: {
+            type: { type: 'string' },
+            example: { type: 'object' },
+          },
+          required: ['type'],
+        },
+      },
+      required: ['input'],
+    },
+  };
+}
+
+export function buildQuote(
+  req: PaymentRequirements,
+  error = 'X-PAYMENT header is required',
+  discovery?: BazaarDiscovery,
+): X402Quote {
+  const tags = discovery?.tags;
+  return {
+    x402Version: 2,
+    error,
+    resource: {
+      url: req.resource,
+      description: req.description,
+      mimeType: req.mimeType,
+      serviceName: discovery?.serviceName ?? 'Clearing',
+      ...(tags && tags.length > 0 ? { tags } : {}),
+    },
+    // v2 wants `amount`; keep v1 fields so ZigZag EIP-3009 still matches PaymentRequirements.
+    accepts: [{ ...req, amount: req.maxAmountRequired }],
+    extensions: {
+      bazaar: httpGetBazaar(
+        discovery ?? {
+          queryParams: {},
+          querySchema: {},
+          requiredQuery: [],
+          outputExample: {},
+        },
+      ),
+    },
+  };
 }
 
 export function encodePayload(body: PayloadBody): string {
@@ -76,12 +172,16 @@ export function decodePayload(headerValue: string): PayloadBody {
 export function parseQuote(body: unknown, headers?: Headers): PaymentRequirements | undefined {
   if (typeof body === 'object' && body !== null) {
     const rec = body as Record<string, unknown>;
+    const resourceUrl =
+      rec.resource && typeof rec.resource === 'object' && rec.resource !== null
+        ? String((rec.resource as { url?: unknown }).url ?? '')
+        : '';
     const accepts = rec.accepts;
     if (Array.isArray(accepts) && accepts.length > 0) {
-      return asRequirements(accepts[0]);
+      return asRequirements(accepts[0], resourceUrl);
     }
     if (rec.paymentRequirements) {
-      return asRequirements(rec.paymentRequirements);
+      return asRequirements(rec.paymentRequirements, resourceUrl);
     }
   }
   if (headers) {
@@ -98,13 +198,13 @@ export function parseQuote(body: unknown, headers?: Headers): PaymentRequirement
   return undefined;
 }
 
-function asRequirements(raw: unknown): PaymentRequirements | undefined {
+function asRequirements(raw: unknown, fallbackResource = ''): PaymentRequirements | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
   const r = raw as Record<string, unknown>;
   const payTo = String(r.payTo ?? r.payToAddress ?? '');
   const asset = String(r.asset ?? r.usdcAddress ?? '');
   const amount = String(r.maxAmountRequired ?? r.amount ?? '');
-  const resource = String(r.resource ?? '');
+  const resource = String(r.resource ?? fallbackResource);
   const network = String(r.network ?? '');
   if (!isHexAddress(payTo) || !amount) return undefined;
   if (asset && normalizeAddress(asset) !== USDC_BASE.toLowerCase()) {

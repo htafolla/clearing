@@ -7,7 +7,7 @@ import { htmlToMarkdown } from './html.js';
 import { ClearingError } from './errors.js';
 import { assertPublicExtractTarget } from './origin.js';
 import { hasNoAiSignal, isPathDisallowed } from './robots.js';
-import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders } from './x402.js';
+import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders, type BazaarDiscovery } from './x402.js';
 import type { ClearingContext } from './context.js';
 import type { ExtractResult } from './types.js';
 
@@ -28,7 +28,10 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
     return agentToolsVerifyTxt(url);
   }
   if (url.pathname === '/.well-known/x402') {
-    return json(x402WellKnown());
+    return json(x402WellKnown(url));
+  }
+  if (url.pathname === '/openapi.json') {
+    return json(openapiDoc(url));
   }
   if (url.pathname !== '/v1/extract') {
     return json({ error: 'not found' }, 404);
@@ -55,13 +58,15 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
 
   const amountUsd = js ? ctx.config.extractPriceJsUsd : ctx.config.extractPriceUsd;
   const resource = url.toString();
+  const description = js ? 'Receipted URL extract (js)' : 'Receipted URL extract';
   const requirements = buildRequirements({
     amountUsd,
     payTo: ctx.config.payTo,
     resource,
-    description: js ? 'Receipted URL extract (js)' : 'Receipted URL extract',
+    description,
   });
-  const quote = buildQuote(requirements);
+  const discovery = extractDiscovery(target, js);
+  const quote = buildQuote(requirements, undefined, discovery);
   const paymentHeader = paymentHeaderFromRequest(req.headers);
   if (!paymentHeader) {
     return new Response(JSON.stringify(quote), { status: 402, headers: quoteHeaders(quote) });
@@ -85,7 +90,7 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
     }
   }
   if (!settle.ok) {
-    return new Response(JSON.stringify(buildQuote(requirements, settle.error ?? 'payment rejected')), {
+    return new Response(JSON.stringify(buildQuote(requirements, settle.error ?? 'payment rejected', discovery)), {
       status: 402,
       headers: quoteHeaders(quote),
     });
@@ -188,6 +193,26 @@ async function fetchPage(
   throw new ClearingError('ssrf', 'too many redirects', 400);
 }
 
+function extractDiscovery(target: URL, js: boolean): BazaarDiscovery {
+  return {
+    queryParams: { url: target.toString(), js: js ? '1' : '0' },
+    querySchema: {
+      url: { type: 'string', description: 'Public https URL to extract' },
+      js: { type: 'string', description: 'Set 1 for JS-rendered extract (0.05 USDC)' },
+    },
+    requiredQuery: ['url'],
+    outputExample: {
+      url: target.toString(),
+      title: 'Example Domain',
+      markdown: '# Example Domain',
+      textHash: 'sha256:00',
+      blocked: false,
+      httpStatus: 200,
+    },
+    tags: ['extract'],
+  };
+}
+
 function blocked(target: URL, reason: string, finalUrl?: string): ExtractResult {
   return {
     url: target.toString(),
@@ -237,7 +262,7 @@ function agentToolsVerifyTxt(url: URL): Response {
  * Override with CLEARING_AGENT_TOOLS_VERIFY or AGENT_TOOLS_VERIFY_DESCRIPTOR.
  * Do not reuse AGENT_TOOLS_VERIFY_TOKEN_RAILWAY (that is the verify.txt railway claim).
  */
-function x402WellKnown(): Record<string, unknown> {
+function x402WellKnown(reqUrl: URL): Record<string, unknown> {
   let body: Record<string, unknown> = { agentToolsVerify: X402_DESCRIPTOR_TOKEN };
   try {
     const raw = readFileSync(join(PUBLIC_DIR, '.well-known/x402'), 'utf8');
@@ -254,7 +279,68 @@ function x402WellKnown(): Record<string, unknown> {
     ''
   ).trim();
   if (token) body.agentToolsVerify = token;
+  const origin = `${reqUrl.protocol}//${reqUrl.host}`;
+  if (body.x402Version === undefined) body.x402Version = 2;
+  if (body.resources === undefined) {
+    body.resources = [
+      `${origin}/v1/extract?url=https://example.com`,
+      `${origin}/v1/witness?url=https://example.com`,
+      `${origin}/v1/pin`,
+    ];
+  }
   return body;
+}
+
+/** Cheap x402scan OpenAPI breadcrumb. Runtime 402 is authoritative. */
+function openapiDoc(reqUrl: URL): Record<string, unknown> {
+  const origin = `${reqUrl.protocol}//${reqUrl.host}`;
+  const paid = (description: string, amount: string) => ({
+    description,
+    parameters: [] as unknown[],
+    responses: {
+      '200': { description: 'Paid success' },
+      '402': { description: 'Payment required' },
+    },
+    'x-payment-info': {
+      price: { mode: 'fixed', currency: 'USD', amount },
+      protocols: [{ x402: {} }],
+    },
+  });
+  return {
+    openapi: '3.1.0',
+    info: {
+      title: 'Clearing',
+      version: '0.1.0',
+      description: 'Receipted URL extract, GET witness, and ERC-8004 pin. Pay live x402 only.',
+    },
+    servers: [{ url: origin }],
+    paths: {
+      '/v1/extract': {
+        get: {
+          ...paid('Receipted URL extract', '0.020000'),
+          parameters: [
+            { name: 'url', in: 'query', required: true, schema: { type: 'string' } },
+            { name: 'js', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+        },
+      },
+      '/v1/witness': {
+        get: {
+          ...paid('GET witness (status, type, sha256, bytes)', '0.020000'),
+          parameters: [{ name: 'url', in: 'query', required: true, schema: { type: 'string' } }],
+        },
+      },
+      '/v1/pin': {
+        get: {
+          ...paid('ERC-8004 pin', '0.010000'),
+          parameters: [
+            { name: 'agentId', in: 'query', required: true, schema: { type: 'string' } },
+            { name: 'registry', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+        },
+      },
+    },
+  };
 }
 
 function publicText(pathname: string): string {
