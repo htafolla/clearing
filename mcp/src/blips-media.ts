@@ -2,7 +2,7 @@
  * Durable Blip tapes. Plant /artifacts is scratch.
  * Hangar copies the mp4 onto dataDir (Railway volume) and serves /v1/blip/media/:id.mp4
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FetchFn } from './types.js';
 
@@ -25,6 +25,14 @@ export function parseMediaMintIndex(pathname: string): number | undefined {
   if (!m) return undefined;
   const n = Number.parseInt(m[1]!, 10);
   return Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+
+export function copyBlipMedia(dataDir: string, fromIndex: number, toIndex: number): boolean {
+  const src = blipsMediaPath(dataDir, fromIndex);
+  if (!existsSync(src)) return false;
+  mkdirSync(blipsMediaDir(dataDir), { recursive: true });
+  copyFileSync(src, blipsMediaPath(dataDir, toIndex));
+  return true;
 }
 
 export function readBlipMedia(dataDir: string, mintIndex: number): Buffer | undefined {

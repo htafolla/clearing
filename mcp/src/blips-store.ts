@@ -28,6 +28,7 @@ export type BlipMintRow = {
 export interface BlipsStore {
   count(): number;
   add(row: BlipMintRow): void;
+  upsert(row: BlipMintRow): void;
   list(): BlipMintRow[];
   get(mintIndex: number): BlipMintRow | undefined;
 }
@@ -48,6 +49,12 @@ export class MemoryBlipsStore implements BlipsStore {
       return;
     }
     this.rows.push({ ...row });
+  }
+
+  upsert(row: BlipMintRow): void {
+    const i = this.rows.findIndex((r) => r.mintIndex === row.mintIndex);
+    if (i >= 0) this.rows[i] = { ...row };
+    else this.rows.push({ ...row });
   }
 
   list(): BlipMintRow[] {
@@ -71,6 +78,12 @@ export class FileBlipsStore extends MemoryBlipsStore {
     mkdirSync(dirname(this.path), { recursive: true });
     appendFileSync(this.path, `${JSON.stringify(row)}\n`, 'utf8');
   }
+
+  override upsert(row: BlipMintRow): void {
+    super.upsert(row);
+    mkdirSync(dirname(this.path), { recursive: true });
+    appendFileSync(this.path, `${JSON.stringify(row)}\n`, 'utf8');
+  }
 }
 
 export function blipsPath(dataDir: string): string {
@@ -79,14 +92,11 @@ export function blipsPath(dataDir: string): string {
 
 function loadJsonl(path: string): BlipMintRow[] {
   if (!existsSync(path)) return [];
-  const rows: BlipMintRow[] = [];
-  const seen = new Set<string>();
+  const byIndex = new Map<number, BlipMintRow>();
   for (const line of readFileSync(path, 'utf8').split('\n')) {
     if (!line.trim()) continue;
     const row = JSON.parse(line) as BlipMintRow;
-    if (seen.has(row.paymentId)) continue;
-    seen.add(row.paymentId);
-    rows.push(row);
+    byIndex.set(row.mintIndex, row);
   }
-  return rows;
+  return [...byIndex.values()];
 }

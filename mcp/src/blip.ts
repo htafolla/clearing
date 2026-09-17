@@ -17,7 +17,14 @@ import {
   blipPriceUsd,
 } from './blips-escalator.js';
 import { parseBlipPicture } from './blips-picture.js';
-import { archivePlantVideo, parseMediaMintIndex, readBlipMedia, mediaFileResponse } from './blips-media.js';
+import {
+  archivePlantVideo,
+  copyBlipMedia,
+  hangarMediaUrl,
+  parseMediaMintIndex,
+  readBlipMedia,
+  mediaFileResponse,
+} from './blips-media.js';
 import { FileBlipsStore } from './blips-store.js';
 import { BLIP_DURATION_SEC, BLIP_PLANT_VERSION } from './blips-plant.js';
 import {
@@ -50,6 +57,9 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
   }
   if (url.pathname.startsWith('/v1/blip/media/')) {
     return media(url, req, ctx);
+  }
+  if (url.pathname === '/v1/blip/migrate' || url.pathname === '/v1/blip/migrate/') {
+    return migrate(req, ctx);
   }
   if (url.pathname !== '/v1/blip' && url.pathname !== '/v1/blip/') {
     return json({ error: 'not found' }, 404);
@@ -433,6 +443,84 @@ async function owned(url: URL, ctx: ClearingContext): Promise<Response> {
     market: false,
     tokens: rows,
   });
+}
+
+function operatorAuthorized(req: Request): boolean {
+  const token = (process.env.CLEARING_OPERATOR_TOKEN || process.env.CLEARING_RAIL_TOKEN || '').trim();
+  if (!token) return false;
+  return (req.headers.get('authorization') || '') === `Bearer ${token}`;
+}
+
+async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
+  if (req.method !== 'POST') return json({ error: 'POST' }, 405);
+  if (!operatorAuthorized(req)) return json({ error: 'unauthorized' }, 401);
+  let body: {
+    tokenId?: number;
+    picture?: string;
+    brief?: string;
+    ownerWallet?: string;
+    aliasOf?: number;
+    force?: boolean;
+  };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return json({ error: 'invalid json' }, 400);
+  }
+  const tokenId = Number(body.tokenId);
+  if (!Number.isInteger(tokenId) || tokenId < 0) return json({ error: 'tokenId' }, 400);
+  const rawPic = String(body.picture || 'still').trim();
+  const pictureIn =
+    rawPic === 'still' || rawPic.startsWith('motion:') ? rawPic : `motion:${rawPic}`;
+  const parsed = parseBlipPicture(pictureIn);
+  if (!parsed.ok) return json({ error: parsed.reason }, 400);
+  const brief =
+    String(body.brief || '').trim() ||
+    'Cyan arc over a gold nameplate. Factory floor at shift change.';
+  const base = ctx.config.extractBaseUrl.replace(/\/$/, '');
+  let videoUrl: string | undefined;
+  const existing = readBlipMedia(ctx.config.dataDir, tokenId);
+  if (existing && !body.force) {
+    videoUrl = hangarMediaUrl(base, tokenId);
+  } else if (typeof body.aliasOf === 'number') {
+    if (copyBlipMedia(ctx.config.dataDir, body.aliasOf, tokenId)) {
+      videoUrl = hangarMediaUrl(base, tokenId);
+    } else {
+      videoUrl = hangarMediaUrl(base, body.aliasOf);
+    }
+  } else {
+    const plant = await ctx.blipPlant.render({ picture: parsed.picture, brief });
+    if (!plant.ok) {
+      return json({ error: plant.reason ?? 'plant FAIL', tokenId }, 502);
+    }
+    videoUrl = await archivePlantVideo({
+      videoUrl: plant.videoUrl,
+      dataDir: ctx.config.dataDir,
+      mintIndex: tokenId,
+      publicBase: base,
+      fetchFn: ctx.fetch,
+    });
+  }
+  const ownerWallet =
+    body.ownerWallet && isHexAddress(body.ownerWallet)
+      ? normalizeAddress(body.ownerWallet)
+      : ('0x0000000000000000000000000000000000000000' as HexAddress);
+  ctx.blips.upsert({
+    mintIndex: tokenId,
+    tokenId,
+    ownerWallet,
+    mintTx: `0x${'0'.repeat(64)}` as HexAddress,
+    paymentId: `migrate:${tokenId}`,
+    priceCents: blipPriceCents(tokenId),
+    picture: parsed.picture,
+    brief,
+    videoUrl,
+    durationSec: BLIP_DURATION_SEC,
+    plantVersion: `remaster:${BLIP_PLANT_VERSION}`,
+    tokenURI: `${base}/v1/blip/metadata/${tokenId}`,
+    settledAt: ctx.now().toISOString(),
+  });
+  return json({ ok: true, tokenId, picture: parsed.picture, videoUrl, remaster: true });
 }
 
 function media(url: URL, req: Request, ctx: ClearingContext): Response {

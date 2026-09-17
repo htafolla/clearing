@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { handleBlip } from '../mcp/src/blip.js';
+import { makeCtx } from './helpers.js';
 import {
   archivePlantVideo,
   hangarMediaUrl,
@@ -33,6 +35,62 @@ describe('durable blip media', () => {
     const res = mediaFileResponse(readBlipMedia(dir, 23)!, 'bytes=0-9');
     expect(res.status).toBe(206);
     expect(Buffer.from(await res.arrayBuffer()).byteLength).toBe(10);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('migrate is unauthorized without operator token', async () => {
+    const ctx = makeCtx();
+    const res = await handleBlip(
+      new Request('https://api.clearing.dev/v1/blip/migrate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tokenId: 0, picture: 'still' }),
+      }),
+      ctx,
+    );
+    expect(res?.status).toBe(401);
+  });
+
+  it('migrate remasters onto hangar media with operator token', async () => {
+    const prev = process.env.CLEARING_OPERATOR_TOKEN;
+    process.env.CLEARING_OPERATOR_TOKEN = 'test-op';
+    const dir = mkdtempSync(join(tmpdir(), 'blip-mig-'));
+    const bytes = Buffer.alloc(1024, 3);
+    const ctx = makeCtx(
+      {
+        'https://artifacts.clearing.dev/blip/still.mp4': {
+          body: bytes.toString('latin1'),
+          contentType: 'video/mp4',
+        },
+      },
+      { persist: true, config: { dataDir: dir } },
+    );
+    const res = await handleBlip(
+      new Request('https://api.clearing.dev/v1/blip/migrate', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer test-op',
+        },
+        body: JSON.stringify({
+          tokenId: 3,
+          picture: 'still',
+          brief: 'warehouse floor',
+          ownerWallet: '0x00552afc18275c7723dad2EC95d77308738cE07e',
+        }),
+      }),
+      ctx,
+    );
+    expect(res?.status).toBe(200);
+    const body = (await res!.json()) as { videoUrl?: string; remaster?: boolean };
+    expect(body.remaster).toBe(true);
+    expect(body.videoUrl).toContain('/v1/blip/media/3.mp4');
+    expect(readBlipMedia(dir, 3)?.byteLength).toBe(1024);
+    const meta = await handleBlip(new Request('https://api.clearing.dev/v1/blip/metadata/3'), ctx);
+    const md = (await meta!.json()) as { animation_url?: string };
+    expect(md.animation_url).toContain('/v1/blip/media/3.mp4');
+    if (prev === undefined) delete process.env.CLEARING_OPERATOR_TOKEN;
+    else process.env.CLEARING_OPERATOR_TOKEN = prev;
     rmSync(dir, { recursive: true, force: true });
   });
 
