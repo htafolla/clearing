@@ -496,7 +496,11 @@ async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
       videoUrl = hangarMediaUrl(base, body.aliasOf);
     }
   } else {
-    const plant = await ctx.blipPlant.render({ picture: parsed.picture, brief });
+    const plant = await ctx.blipPlant.render({
+      picture: parsed.picture,
+      brief,
+      mintIndex: tokenId,
+    });
     if (!plant.ok) {
       return json({ error: plant.reason ?? 'plant FAIL', tokenId }, 502);
     }
