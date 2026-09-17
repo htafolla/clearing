@@ -7,12 +7,18 @@ import { makeCtx } from './helpers.js';
 import {
   archivePlantVideo,
   hangarMediaUrl,
+  isHangarTapeUrl,
   mediaFileResponse,
   parseMediaMintIndex,
   readBlipMedia,
 } from '../mcp/src/blips-media.js';
 
 describe('durable blip media', () => {
+  it('isHangarTapeUrl only matches hangar media', () => {
+    expect(isHangarTapeUrl('https://clearing.rippel.ai/v1/blip/media/0.mp4')).toBe(true);
+    expect(isHangarTapeUrl('https://blip-plant-production.up.railway.app/artifacts/x.mp4')).toBe(false);
+  });
+
   it('parses /v1/blip/media/:id.mp4', () => {
     expect(parseMediaMintIndex('/v1/blip/media/11.mp4')).toBe(11);
     expect(parseMediaMintIndex('/v1/blip/media/0')).toBe(0);

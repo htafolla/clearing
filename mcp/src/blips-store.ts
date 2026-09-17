@@ -31,6 +31,7 @@ export interface BlipsStore {
   upsert(row: BlipMintRow): void;
   list(): BlipMintRow[];
   get(mintIndex: number): BlipMintRow | undefined;
+  getByPaymentId(paymentId: string): BlipMintRow | undefined;
 }
 
 export class MemoryBlipsStore implements BlipsStore {
@@ -63,6 +64,11 @@ export class MemoryBlipsStore implements BlipsStore {
 
   get(mintIndex: number): BlipMintRow | undefined {
     return this.rows.find((r) => r.mintIndex === mintIndex);
+  }
+
+  getByPaymentId(paymentId: string): BlipMintRow | undefined {
+    if (!paymentId) return undefined;
+    return this.rows.find((r) => r.paymentId === paymentId);
   }
 }
 

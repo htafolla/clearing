@@ -21,6 +21,11 @@ export function hangarMediaUrl(base: string, mintIndex: number): string {
   return `${base.replace(/\/$/, '')}/v1/blip/media/${mintIndex}.mp4`;
 }
 
+export function isHangarTapeUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  return /\/v1\/blip\/media\/\d+\.mp4$/i.test(url.split('?')[0] || '');
+}
+
 export function hangarPosterUrl(base: string, mintIndex: number): string {
   return `${base.replace(/\/$/, '')}/v1/blip/poster/${mintIndex}.svg`;
 }

@@ -22,6 +22,7 @@ import {
   copyBlipMedia,
   hangarMediaUrl,
   hangarPosterUrl,
+  isHangarTapeUrl,
   parseMediaMintIndex,
   parsePosterMintIndex,
   posterSvg,
@@ -63,6 +64,9 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
   }
   if (url.pathname.startsWith('/v1/blip/poster/')) {
     return poster(url, ctx);
+  }
+  if (url.pathname === '/v1/blip/collection' || url.pathname === '/v1/blip/collection.json') {
+    return collection(ctx);
   }
   if (url.pathname === '/v1/blip/migrate' || url.pathname === '/v1/blip/migrate/') {
     return migrate(req, ctx);
@@ -125,6 +129,29 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     return json({ error: 'ownerWallet required (eip3009.from or owner=)', paid: false }, 400);
   }
 
+  const prior = ctx.blips.getByPaymentId(payload.paymentId);
+  if (prior) {
+    return json({
+      paid: true,
+      replayed: true,
+      skill: 'blip',
+      picture: prior.picture,
+      brief: prior.brief,
+      durationSec: prior.durationSec,
+      videoUrl: prior.videoUrl,
+      imageUrl: prior.imageUrl,
+      audioUrl: prior.audioUrl,
+      plantVersion: prior.plantVersion,
+      mintIndex: prior.mintIndex,
+      priceCents: prior.priceCents,
+      tokenId: prior.tokenId,
+      mintTx: prior.mintTx,
+      tokenURI: prior.tokenURI,
+      ownerWallet: prior.ownerWallet,
+      market: false,
+    });
+  }
+
   let plant;
   try {
     plant = await ctx.blipPlant.render({
@@ -160,6 +187,19 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
       fetchFn: ctx.fetch,
       nft: ctx.config.blipsNft,
     });
+    const onVolume = Boolean(readBlipMedia(ctx.config.dataDir, mintIndex, ctx.config.blipsNft));
+    if (!isHangarTapeUrl(videoUrl) || !onVolume) {
+      return json(
+        {
+          error: 'tape not on hangar — not charged',
+          paid: false,
+          charged: false,
+          picture: picture.picture,
+          plantVersion: plant.plantVersion,
+        },
+        502,
+      );
+    }
   }
 
   const settle = await ctx.facilitator.settle(paymentHeader, requirements);
@@ -167,7 +207,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     return json({ error: settle.error ?? 'payment not settled', paid: false, charged: false }, 402);
   }
 
-  const tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${mintIndex}`;
+  let tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${mintIndex}`;
   let minted;
   try {
     minted = await ctx.blipsMinter.mint({
@@ -189,8 +229,14 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     );
   }
 
+  if (minted.tokenId !== mintIndex) {
+    copyBlipMedia(ctx.config.dataDir, mintIndex, minted.tokenId, ctx.config.blipsNft);
+    tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${minted.tokenId}`;
+    videoUrl = hangarMediaUrl(ctx.config.extractBaseUrl, minted.tokenId);
+  }
+
   ctx.blips.add({
-    mintIndex,
+    mintIndex: minted.tokenId,
     tokenId: minted.tokenId,
     ownerWallet: minted.ownerWallet,
     mintTx: minted.mintTx,
@@ -200,7 +246,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     picture: picture.picture,
     brief: input.brief,
     videoUrl,
-    imageUrl: plant.imageUrl || hangarPosterUrl(ctx.config.extractBaseUrl, mintIndex),
+    imageUrl: plant.imageUrl || hangarPosterUrl(ctx.config.extractBaseUrl, minted.tokenId),
     audioUrl: plant.audioUrl,
     durationSec: plant.durationSec || BLIP_DURATION_SEC,
     plantVersion: plant.plantVersion || BLIP_PLANT_VERSION,
@@ -534,6 +580,20 @@ async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
     settledAt: ctx.now().toISOString(),
   });
   return json({ ok: true, tokenId, picture: parsed.picture, videoUrl, remaster: true });
+}
+
+function collection(ctx: ClearingContext): Response {
+  const base = ctx.config.extractBaseUrl.replace(/\/$/, '');
+  return json({
+    name: 'Blips',
+    symbol: 'BLIP',
+    description: '4.44s shorties that blip',
+    image: `${base}/v1/blip/poster/0.svg`,
+    external_link: 'https://blips.rippel.ai',
+    seller_fee_basis_points: 500,
+    fee_recipient: ctx.config.payTo,
+    nft: ctx.config.blipsNft,
+  });
 }
 
 function poster(url: URL, ctx: ClearingContext): Response {

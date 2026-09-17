@@ -138,6 +138,43 @@ describe('hangar skill blip', () => {
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
   });
 
+  it('same paymentId does not mill or mint twice', async () => {
+    const ctx = makeCtx();
+    const unpaid = await handleBlip(new Request(blipUrl()), ctx);
+    const quote = (await unpaid!.json()) as {
+      accepts: Array<import('../mcp/src/types.js').PaymentRequirements>;
+    };
+    const paymentId = randomUUID();
+    const header = encodePayload({
+      x402Version: 1,
+      paymentId,
+      nonce: paymentId,
+      accepted: quote.accepts[0]!,
+      eip3009: {
+        from: PAYER_A,
+        to: ctx.config.payTo,
+        value: quote.accepts[0]!.maxAmountRequired,
+        validAfter: '0',
+        validBefore: '9999999999',
+        nonce: `0x${'11'.repeat(32)}`,
+        signature: `0x${'22'.repeat(65)}`,
+      },
+    });
+    const first = await handleBlip(new Request(blipUrl(), { headers: { 'X-PAYMENT': header } }), ctx);
+    expect(first?.status).toBe(200);
+    const plant = ctx.blipPlant as FakeBlipPlant;
+    expect(plant.calls).toBe(1);
+    const second = await handleBlip(new Request(blipUrl(), { headers: { 'X-PAYMENT': header } }), ctx);
+    expect(second?.status).toBe(200);
+    const body = (await second!.json()) as { replayed?: boolean; tokenId?: number };
+    expect(body.replayed).toBe(true);
+    expect(body.tokenId).toBe(0);
+    expect(plant.calls).toBe(1);
+    expect(ctx.blips.count()).toBe(1);
+    expect(await ctx.blipsMinter.totalSupply()).toBe(1);
+    expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(1);
+  });
+
   it('failed plant → no charge', async () => {
     const plant = new FakeBlipPlant();
     plant.failNext = 'ffmpeg missing';
