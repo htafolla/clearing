@@ -5,6 +5,7 @@ Pay live x402 services. Sell receipted URL extracts. Never double-pay.
 extract: GET /v1/extract?url={url}&js=0|1
 pin: GET /v1/pin?agentId={id}
 blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=...
+blip-media: GET /v1/blip/media/{id}.mp4 (public; hangar tape, not plant scratch)
 listed: GET /v1/listed
 online: GET /v1/online
 rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store (tools / 402 / health) + online (health ok within 15 min) → listed. N=15 minutes (CLEARING_PROBE_INTERVAL_MS / probeIntervalMs). Pin alone is not enough. Identity-only / missing Groover or solar are not listed. No extra directory fee.

@@ -17,6 +17,8 @@ import {
   blipPriceUsd,
 } from './blips-escalator.js';
 import { parseBlipPicture } from './blips-picture.js';
+import { archivePlantVideo, parseMediaMintIndex, readBlipMedia, mediaFileResponse } from './blips-media.js';
+import { FileBlipsStore } from './blips-store.js';
 import { BLIP_DURATION_SEC, BLIP_PLANT_VERSION } from './blips-plant.js';
 import {
   buildQuote,
@@ -45,6 +47,9 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
   }
   if (url.pathname.startsWith('/v1/blip/metadata/')) {
     return metadata(url, ctx);
+  }
+  if (url.pathname.startsWith('/v1/blip/media/')) {
+    return media(url, req, ctx);
   }
   if (url.pathname !== '/v1/blip' && url.pathname !== '/v1/blip/') {
     return json({ error: 'not found' }, 404);
@@ -129,6 +134,17 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     );
   }
 
+  let videoUrl = plant.videoUrl;
+  if (ctx.blips instanceof FileBlipsStore) {
+    videoUrl = await archivePlantVideo({
+      videoUrl: plant.videoUrl,
+      dataDir: ctx.config.dataDir,
+      mintIndex,
+      publicBase: ctx.config.extractBaseUrl,
+      fetchFn: ctx.fetch,
+    });
+  }
+
   const settle = await ctx.facilitator.settle(paymentHeader, requirements);
   if (!settle.ok) {
     return json({ error: settle.error ?? 'payment not settled', paid: false, charged: false }, 402);
@@ -149,6 +165,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
         paid: true,
         charged: true,
         txHash: settle.txHash,
+        videoUrl,
         note: 'payment settled; NFT mint failed — not a soft-DB ownership substitute',
       },
       502,
@@ -165,7 +182,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     priceCents,
     picture: picture.picture,
     brief: input.brief,
-    videoUrl: plant.videoUrl,
+    videoUrl,
     imageUrl: plant.imageUrl,
     audioUrl: plant.audioUrl,
     durationSec: plant.durationSec || BLIP_DURATION_SEC,
@@ -194,7 +211,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
       skill: 'blip',
       picture: picture.picture,
       brief: input.brief,
-      videoUrl: plant.videoUrl,
+      videoUrl,
       imageUrl: plant.imageUrl,
       audioUrl: plant.audioUrl,
       durationSec: plant.durationSec || BLIP_DURATION_SEC,
@@ -416,6 +433,14 @@ async function owned(url: URL, ctx: ClearingContext): Promise<Response> {
     market: false,
     tokens: rows,
   });
+}
+
+function media(url: URL, req: Request, ctx: ClearingContext): Response {
+  const mintIndex = parseMediaMintIndex(url.pathname);
+  if (mintIndex === undefined) return json({ error: 'tokenId' }, 400);
+  const buf = readBlipMedia(ctx.config.dataDir, mintIndex);
+  if (!buf) return json({ error: 'missing' }, 404);
+  return mediaFileResponse(buf, req.headers.get('range'));
 }
 
 async function metadata(url: URL, ctx: ClearingContext): Promise<Response> {

@@ -54,6 +54,7 @@ When a Blips ERC-721 is configured, hangar also reads minter `totalSupply()` and
 New **Blips** collection on Base (`contracts/Blips.sol`) — not GRVR / ERC-8004.  
 Pay settle **gates** `mint(to, tokenURI)` to the payer wallet (`eip3009.from`).  
 `tokenURI` → 4.44s media + receipt fields. Soft-DB-only ownership is a defect.
+Plant `/artifacts` is scratch. Hangar copies the mp4 onto `CLEARING_DATA_DIR/blips-media` and serves `GET /v1/blip/media/:id.mp4` (public, unpaid). Restart must not kill the tape.
 
 Minter keys stay on the rail: set `BLIPS_MINT_URL` (and `BLIPS_NFT` after Blaze deploys). Fake stack uses `MemoryBlipsMinter` (still emits `tokenId` + `mintTx`; `/owned` reads the minter, not the receipt file alone).
 
