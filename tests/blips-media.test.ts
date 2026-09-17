@@ -87,8 +87,9 @@ describe('durable blip media', () => {
     expect(body.videoUrl).toContain('/v1/blip/media/3.mp4');
     expect(readBlipMedia(dir, 3)?.byteLength).toBe(1024);
     const meta = await handleBlip(new Request('https://api.clearing.dev/v1/blip/metadata/3'), ctx);
-    const md = (await meta!.json()) as { animation_url?: string };
+    const md = (await meta!.json()) as { animation_url?: string; image?: string };
     expect(md.animation_url).toContain('/v1/blip/media/3.mp4');
+    expect(md.image).toContain('/v1/blip/poster/3.svg');
     if (prev === undefined) delete process.env.CLEARING_OPERATOR_TOKEN;
     else process.env.CLEARING_OPERATOR_TOKEN = prev;
     rmSync(dir, { recursive: true, force: true });

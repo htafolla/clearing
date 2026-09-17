@@ -21,7 +21,10 @@ import {
   archivePlantVideo,
   copyBlipMedia,
   hangarMediaUrl,
+  hangarPosterUrl,
   parseMediaMintIndex,
+  parsePosterMintIndex,
+  posterSvg,
   readBlipMedia,
   mediaFileResponse,
 } from './blips-media.js';
@@ -57,6 +60,9 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
   }
   if (url.pathname.startsWith('/v1/blip/media/')) {
     return media(url, req, ctx);
+  }
+  if (url.pathname.startsWith('/v1/blip/poster/')) {
+    return poster(url, ctx);
   }
   if (url.pathname === '/v1/blip/migrate' || url.pathname === '/v1/blip/migrate/') {
     return migrate(req, ctx);
@@ -193,7 +199,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     picture: picture.picture,
     brief: input.brief,
     videoUrl,
-    imageUrl: plant.imageUrl,
+    imageUrl: plant.imageUrl || hangarPosterUrl(ctx.config.extractBaseUrl, mintIndex),
     audioUrl: plant.audioUrl,
     durationSec: plant.durationSec || BLIP_DURATION_SEC,
     plantVersion: plant.plantVersion || BLIP_PLANT_VERSION,
@@ -515,12 +521,28 @@ async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
     picture: parsed.picture,
     brief,
     videoUrl,
+    imageUrl: hangarPosterUrl(base, tokenId),
     durationSec: BLIP_DURATION_SEC,
     plantVersion: `remaster:${BLIP_PLANT_VERSION}`,
     tokenURI: `${base}/v1/blip/metadata/${tokenId}`,
     settledAt: ctx.now().toISOString(),
   });
   return json({ ok: true, tokenId, picture: parsed.picture, videoUrl, remaster: true });
+}
+
+function poster(url: URL, ctx: ClearingContext): Response {
+  const mintIndex = parsePosterMintIndex(url.pathname);
+  if (mintIndex === undefined) return json({ error: 'tokenId' }, 400);
+  const receipt = ctx.blips.get(mintIndex);
+  const svg = posterSvg(mintIndex, receipt?.picture ?? 'still');
+  return new Response(svg, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/svg+xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
 }
 
 function media(url: URL, req: Request, ctx: ClearingContext): Response {
@@ -540,11 +562,13 @@ async function metadata(url: URL, ctx: ClearingContext): Promise<Response> {
   if (!receipt && !minted) return json({ error: 'unknown token' }, 404);
   const picture = receipt?.picture ?? 'still';
   const media = receipt?.videoUrl ?? receipt?.imageUrl;
+  const base = ctx.config.extractBaseUrl.replace(/\/$/, '');
+  const poster = receipt?.imageUrl || hangarPosterUrl(base, tokenId);
   return json({
     name: `Blip #${tokenId}`,
-    description: `4.44s Blip · ${picture} · Clearing hangar · Base USDC`,
+    description: `4.44s shortie that blips · ${picture}`,
     animation_url: receipt?.videoUrl,
-    image: receipt?.imageUrl,
+    image: poster,
     audio: receipt?.audioUrl,
     external_url: minted?.tokenURI ?? receipt?.tokenURI,
     attributes: [

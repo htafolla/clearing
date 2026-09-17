@@ -20,11 +20,38 @@ export function hangarMediaUrl(base: string, mintIndex: number): string {
   return `${base.replace(/\/$/, '')}/v1/blip/media/${mintIndex}.mp4`;
 }
 
+export function hangarPosterUrl(base: string, mintIndex: number): string {
+  return `${base.replace(/\/$/, '')}/v1/blip/poster/${mintIndex}.svg`;
+}
+
 export function parseMediaMintIndex(pathname: string): number | undefined {
   const m = /\/v1\/blip\/media\/(\d+)(?:\.mp4)?$/i.exec(pathname);
   if (!m) return undefined;
   const n = Number.parseInt(m[1]!, 10);
   return Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+
+export function parsePosterMintIndex(pathname: string): number | undefined {
+  const m = /\/v1\/blip\/poster\/(\d+)(?:\.svg)?$/i.exec(pathname);
+  if (!m) return undefined;
+  const n = Number.parseInt(m[1]!, 10);
+  return Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+
+/** Marketplace card. OpenSea needs `image`; `animation_url` alone shows a blank. */
+export function posterSvg(tokenId: number, picture = 'still'): string {
+  const label = picture.replace('motion:', '');
+  const id = String(tokenId);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#08090B"/>
+  <rect x="24" y="24" width="1152" height="582" fill="none" stroke="#F5C518" stroke-width="3"/>
+  <path d="M80 360 L180 360 L260 140 L360 500 L460 80 L560 360 L680 200 L800 420 L920 120 L1120 360" fill="none" stroke="#3DE0E8" stroke-width="6" stroke-linejoin="round"/>
+  <text x="80" y="88" fill="#3DE0E8" font-family="ui-monospace, monospace" font-size="28">BLIPS</text>
+  <text x="80" y="560" fill="#F5F7FA" font-family="ui-sans-serif, sans-serif" font-size="52" font-weight="700">#${id}</text>
+  <text x="80" y="600" fill="#8B939C" font-family="ui-monospace, monospace" font-size="22">${label} · 4.44s</text>
+</svg>
+`;
 }
 
 export function copyBlipMedia(dataDir: string, fromIndex: number, toIndex: number): boolean {
