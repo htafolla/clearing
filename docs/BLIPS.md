@@ -2,7 +2,7 @@
 
 A friend would hear: pay a few cents USDC on Base at the hangar, get one 4.44s Blip back — factory already exists; this ticket wires the shop.
 
-Factory plant `blip` is a sibling to `mill` + `sound` (xray main `3e10150` / PR #66). This repo is the hangar shop. No Dist. No marketplace v0.
+Factory plant `blip` is a sibling to `mill` + `sound` (xray `4.0.15` / `d466f1a91`). This repo is the hangar shop. No Dist. No marketplace v0. `kapow` is a live design opt (`motion:kapow`).
 
 ## Route
 
@@ -19,7 +19,7 @@ Factory plant `blip` is a sibling to `mill` + `sound` (xray main `3e10150` / PR 
 Clearing does **not** vendor `@0xray/foundry` (see CONSTRAINTS). Hangar calls the sibling plant:
 
 1. **Preferred:** `POST $BLIPS_FOUNDRY_URL` JSON `{ brief, picture, style? }` — foundry-as-service.
-2. **CLI:** `BLIPS_FOUNDRY_CLI=1` → `npx @0xray/foundry blip render --brief TEXT --mode still|motion:<id>` (xray `3e10150`).
+2. **CLI:** `BLIPS_FOUNDRY_CLI=1` → `npx @0xray/foundry blip render --brief TEXT --mode still|motion:<id>` (xray `4.0.15` / `d466f1a91`).
 3. **Local/fake:** `CLEARING_ALLOW_FAKE=1` uses `FakeBlipPlant` (tests / kit). Not a live encode.
 
 Not `npx @0xray/foundry mint`. Not a mill bolt-on.
@@ -59,4 +59,4 @@ Minter keys stay on the rail: set `BLIPS_MINT_URL` (and `BLIPS_NFT` after Blaze 
 
 ## Out of scope
 
-Mint front Railway (`blips.rippel.ai`) · Dist · market · Gleams · kapow renderer · DNS
+Mint front Railway (`blips.rippel.ai`) · Dist · market · Gleams · DNS

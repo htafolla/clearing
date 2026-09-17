@@ -1,7 +1,7 @@
 /**
  * Hangar skill `blip` — Clearing shop half of the factory pair.
  * Route: GET|POST /v1/blip
- * Factory: plant `blip` on xray main 3e10150 (PR #66).
+ * Factory: plant `blip` on xray 4.0.15 / d466f1a91 (kapow opt live).
  *
  * x402 quote BEFORE work. Failed gen → no charge.
  * ZigZag-shaped EIP-3009 honesty (`signer:zigzag`) — not marketplace, not hosted /sign.

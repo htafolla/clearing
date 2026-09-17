@@ -129,12 +129,12 @@ describe('hangar skill blip', () => {
     expect(await ctx.blipsMinter.totalSupply()).toBe(1);
   });
 
-  it('unknown motion and kapow FAIL before quote (no charge)', async () => {
+  it('unknown motion FAIL before quote (no charge); kapow is a live opt', async () => {
     const ctx = makeCtx();
     const unknown = await handleBlip(new Request(blipUrl('kenburns')), ctx);
     expect(unknown?.status).toBe(400);
     const kapow = await handleBlip(new Request(blipUrl('motion:kapow')), ctx);
-    expect(kapow?.status).toBe(400);
+    expect(kapow?.status).toBe(402);
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
   });
 

@@ -1,5 +1,5 @@
 /**
- * Invoke factory plant `blip` (xray main 3e10150 / PR #66).
+ * Invoke factory plant `blip` (xray 4.0.15 / d466f1a91 — kapow opt live).
  *
  * Preferred: POST BLIPS_FOUNDRY_URL  { brief, picture, style? }
  * Fallback:  npx @0xray/foundry blip render --brief TEXT --mode still|motion:<id>
@@ -11,7 +11,7 @@ import { spawn } from 'node:child_process';
 import { ClearingError } from './errors.js';
 
 export const BLIP_DURATION_SEC = 4.44;
-export const BLIP_PLANT_VERSION = 'xray@3e10150';
+export const BLIP_PLANT_VERSION = 'xray@d466f1a91+kapow';
 
 export type BlipPlantInput = {
   picture: string;

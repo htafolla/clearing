@@ -19,7 +19,9 @@ describe('Blips hangar honesty', () => {
     expect(docs).toMatch(/EIP-3009/);
     expect(docs).toMatch(/not (a )?marketplace/i);
     expect(docs).toMatch(/max\(5, round\(5 \+ 550 \* \(mintIndex\/555\)\*\*2\)\)/);
-    expect(docs).toMatch(/3e10150/);
+    expect(docs).toMatch(/4\.0\.15/);
+    expect(docs).toMatch(/d466f1a91/);
+    expect(docs).toMatch(/kapow/);
     expect(docs).toMatch(/npx @0xray\/foundry blip render/);
     expect(docs).toMatch(/BLIPS_FOUNDRY_URL/);
     expect(docs).toMatch(/settled paid/);

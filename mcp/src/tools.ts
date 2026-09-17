@@ -121,7 +121,7 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: 'object',
       properties: {
-        picture: { type: 'string', description: 'still or motion:<id> (orb swirl snap waves spark)' },
+        picture: { type: 'string', description: 'still or motion:<id> (orb swirl snap waves spark kapow)' },
         brief: { type: 'string' },
         style: { type: 'string' },
         owner: { type: 'string', description: 'Payer wallet if the payload has no eip3009.from' },
