@@ -17,6 +17,7 @@ export type BlipPlantInput = {
   picture: string;
   brief: string;
   style?: string;
+  mintIndex?: number;
 };
 
 export type BlipPlantResult = {

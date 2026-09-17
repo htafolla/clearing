@@ -110,6 +110,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
       picture: picture.picture,
       brief: input.brief,
       style: input.style,
+      mintIndex,
     });
   } catch (err) {
     const msg = err instanceof ClearingError ? err.message : err instanceof Error ? err.message : 'plant failed';
