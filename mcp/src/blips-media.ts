@@ -5,15 +5,16 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FetchFn } from './types.js';
+import { collectionTag } from './blips-store.js';
 
 const MIN_BYTES = 256;
 
-export function blipsMediaDir(dataDir: string): string {
-  return join(dataDir, 'blips-media');
+export function blipsMediaDir(dataDir: string, nft?: string): string {
+  return join(dataDir, `blips-media-${collectionTag(nft)}`);
 }
 
-export function blipsMediaPath(dataDir: string, mintIndex: number): string {
-  return join(blipsMediaDir(dataDir), `${mintIndex}.mp4`);
+export function blipsMediaPath(dataDir: string, mintIndex: number, nft?: string): string {
+  return join(blipsMediaDir(dataDir, nft), `${mintIndex}.mp4`);
 }
 
 export function hangarMediaUrl(base: string, mintIndex: number): string {
@@ -54,16 +55,16 @@ export function posterSvg(tokenId: number, picture = 'still'): string {
 `;
 }
 
-export function copyBlipMedia(dataDir: string, fromIndex: number, toIndex: number): boolean {
-  const src = blipsMediaPath(dataDir, fromIndex);
+export function copyBlipMedia(dataDir: string, fromIndex: number, toIndex: number, nft?: string): boolean {
+  const src = blipsMediaPath(dataDir, fromIndex, nft);
   if (!existsSync(src)) return false;
-  mkdirSync(blipsMediaDir(dataDir), { recursive: true });
-  copyFileSync(src, blipsMediaPath(dataDir, toIndex));
+  mkdirSync(blipsMediaDir(dataDir, nft), { recursive: true });
+  copyFileSync(src, blipsMediaPath(dataDir, toIndex, nft));
   return true;
 }
 
-export function readBlipMedia(dataDir: string, mintIndex: number): Buffer | undefined {
-  const path = blipsMediaPath(dataDir, mintIndex);
+export function readBlipMedia(dataDir: string, mintIndex: number, nft?: string): Buffer | undefined {
+  const path = blipsMediaPath(dataDir, mintIndex, nft);
   if (!existsSync(path)) return undefined;
   return readFileSync(path);
 }
@@ -74,6 +75,7 @@ export async function archivePlantVideo(opts: {
   mintIndex: number;
   publicBase: string;
   fetchFn: FetchFn;
+  nft?: string;
 }): Promise<string | undefined> {
   if (!opts.videoUrl) return undefined;
   try {
@@ -81,8 +83,8 @@ export async function archivePlantVideo(opts: {
     if (!res.ok) return opts.videoUrl;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.byteLength < MIN_BYTES) return opts.videoUrl;
-    mkdirSync(blipsMediaDir(opts.dataDir), { recursive: true });
-    writeFileSync(blipsMediaPath(opts.dataDir, opts.mintIndex), buf);
+    mkdirSync(blipsMediaDir(opts.dataDir, opts.nft), { recursive: true });
+    writeFileSync(blipsMediaPath(opts.dataDir, opts.mintIndex, opts.nft), buf);
     return hangarMediaUrl(opts.publicBase, opts.mintIndex);
   } catch {
     return opts.videoUrl;

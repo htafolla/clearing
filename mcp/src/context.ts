@@ -120,7 +120,7 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
       (overrides.persist ? new FileListedBoard(listedPath(config.dataDir)) : new MemoryListedBoard()),
     blips:
       overrides.blips ??
-      (overrides.persist ? new FileBlipsStore(blipsPath(config.dataDir)) : new MemoryBlipsStore()),
+      (overrides.persist ? new FileBlipsStore(blipsPath(config.dataDir, config.blipsNft)) : new MemoryBlipsStore()),
     blipPlant:
       overrides.blipPlant ??
       (config.allowFake ? new FakeBlipPlant() : createBlipPlant({ fetchFn: overrides.fetch, allowFake: false })),

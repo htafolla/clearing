@@ -158,6 +158,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
       mintIndex,
       publicBase: ctx.config.extractBaseUrl,
       fetchFn: ctx.fetch,
+      nft: ctx.config.blipsNft,
     });
   }
 
@@ -485,11 +486,11 @@ async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
     'Cyan arc over a gold nameplate. Factory floor at shift change.';
   const base = ctx.config.extractBaseUrl.replace(/\/$/, '');
   let videoUrl: string | undefined;
-  const existing = readBlipMedia(ctx.config.dataDir, tokenId);
+  const existing = readBlipMedia(ctx.config.dataDir, tokenId, ctx.config.blipsNft);
   if (existing && !body.force) {
     videoUrl = hangarMediaUrl(base, tokenId);
   } else if (typeof body.aliasOf === 'number') {
-    if (copyBlipMedia(ctx.config.dataDir, body.aliasOf, tokenId)) {
+    if (copyBlipMedia(ctx.config.dataDir, body.aliasOf, tokenId, ctx.config.blipsNft)) {
       videoUrl = hangarMediaUrl(base, tokenId);
     } else {
       videoUrl = hangarMediaUrl(base, body.aliasOf);
@@ -505,6 +506,7 @@ async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
       mintIndex: tokenId,
       publicBase: base,
       fetchFn: ctx.fetch,
+      nft: ctx.config.blipsNft,
     });
   }
   const ownerWallet =
@@ -548,7 +550,7 @@ function poster(url: URL, ctx: ClearingContext): Response {
 function media(url: URL, req: Request, ctx: ClearingContext): Response {
   const mintIndex = parseMediaMintIndex(url.pathname);
   if (mintIndex === undefined) return json({ error: 'tokenId' }, 400);
-  const buf = readBlipMedia(ctx.config.dataDir, mintIndex);
+  const buf = readBlipMedia(ctx.config.dataDir, mintIndex, ctx.config.blipsNft);
   if (!buf) return json({ error: 'missing' }, 404);
   return mediaFileResponse(buf, req.headers.get('range'));
 }

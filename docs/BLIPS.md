@@ -51,7 +51,7 @@ When a Blips ERC-721 is configured, hangar also reads minter `totalSupply()` and
 
 ## NFT
 
-New **Blips** collection on Base (`contracts/Blips.sol`) — not GRVR / ERC-8004.  
+New **Blips** collection on Base: `0x0bC235D6125520A57Df03A1910313A8101666E23` (`contracts/Blips.sol`) — enumerable + ERC-2981 + `setTokenURI`/4906. Fossil mill `0x978295330Ba861b2A45432F0942Dde61679fDDBd` is retired. Escalator restarts at mint 0. See `docs/BLIPS-V2-DEPLOY.md`.  
 Pay settle **gates** `mint(to, tokenURI)` to the payer wallet (`eip3009.from`).  
 `tokenURI` → 4.44s media + receipt fields. Soft-DB-only ownership is a defect.
 Plant `/artifacts` is scratch. Hangar copies the mp4 onto `CLEARING_DATA_DIR/blips-media` and serves `GET /v1/blip/media/:id.mp4` (public, unpaid). Restart must not kill the tape.

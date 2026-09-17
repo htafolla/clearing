@@ -86,8 +86,14 @@ export class FileBlipsStore extends MemoryBlipsStore {
   }
 }
 
-export function blipsPath(dataDir: string): string {
-  return join(dataDir, 'blips.jsonl');
+/** Collection-scoped ledger so a new mill restarts the escalator at mint 0. */
+export function collectionTag(nft?: string): string {
+  if (!nft || nft.length < 10) return 'local';
+  return nft.slice(2, 10).toLowerCase();
+}
+
+export function blipsPath(dataDir: string, nft?: string): string {
+  return join(dataDir, `blips-${collectionTag(nft)}.jsonl`);
 }
 
 function loadJsonl(path: string): BlipMintRow[] {
