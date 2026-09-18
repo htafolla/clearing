@@ -14,6 +14,7 @@ export type FetchPaidArgs = {
   paymentId?: string;
   dryRun?: boolean;
   approved?: boolean;
+  timeoutMs?: number;
 };
 
 export type FetchPaidResult = {
@@ -68,7 +69,7 @@ export async function fetchPaid(args: FetchPaidArgs, ctx: ClearingContext): Prom
       method: 'GET',
       headers,
       redirect: 'follow',
-      signal: AbortSignal.timeout(ctx.config.fetchTimeoutMs),
+      signal: AbortSignal.timeout(args.timeoutMs ?? ctx.config.fetchTimeoutMs),
     });
   };
 

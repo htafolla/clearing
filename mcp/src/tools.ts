@@ -198,6 +198,7 @@ export async function handleTool(
           paymentId: parsed.paymentId,
           dryRun: parsed.dryRun,
           approved: parsed.approved,
+          timeoutMs: 180_000,
         },
         ctx,
       );
