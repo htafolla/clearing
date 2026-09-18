@@ -30,6 +30,7 @@ import {
   mediaFileResponse,
 } from './blips-media.js';
 import { FileBlipsStore } from './blips-store.js';
+import { withMintLock } from './mint-lock.js';
 import { BLIP_DURATION_SEC, BLIP_PLANT_VERSION } from './blips-plant.js';
 import {
   buildQuote,
@@ -129,6 +130,46 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     return json({ error: 'ownerWallet required (eip3009.from or owner=)', paid: false }, 400);
   }
 
+  return withMintLock(ctx.config.dataDir, () =>
+    fulfillPaidBlip({
+      ctx,
+      picture,
+      input,
+      payload,
+      ownerWallet,
+      mintIndex,
+      priceCents,
+      amountUsd,
+      paymentHeader,
+      requirements,
+    }),
+  );
+}
+
+async function fulfillPaidBlip(args: {
+  ctx: ClearingContext;
+  picture: { ok: true; picture: 'still' | `motion:${string}`; motionId: string };
+  input: { brief: string; style?: string; owner?: string };
+  payload: PayloadBody;
+  ownerWallet: HexAddress;
+  mintIndex: number;
+  priceCents: number;
+  amountUsd: number;
+  paymentHeader: string;
+  requirements: PaymentRequirements;
+}): Promise<Response> {
+  const {
+    ctx,
+    picture,
+    input,
+    payload,
+    ownerWallet,
+    mintIndex,
+    priceCents,
+    amountUsd,
+    paymentHeader,
+    requirements,
+  } = args;
   const prior = ctx.blips.getByPaymentId(payload.paymentId);
   if (prior) {
     return json({
@@ -152,13 +193,15 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     });
   }
 
+  const liveIndex = await nextMintIndex(ctx);
+
   let plant;
   try {
     plant = await ctx.blipPlant.render({
       picture: picture.picture,
       brief: input.brief,
       style: input.style,
-      mintIndex,
+      mintIndex: liveIndex,
     });
   } catch (err) {
     const msg = err instanceof ClearingError ? err.message : err instanceof Error ? err.message : 'plant failed';
@@ -182,12 +225,12 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     videoUrl = await archivePlantVideo({
       videoUrl: plant.videoUrl,
       dataDir: ctx.config.dataDir,
-      mintIndex,
+      mintIndex: liveIndex,
       publicBase: ctx.config.extractBaseUrl,
       fetchFn: ctx.fetch,
       nft: ctx.config.blipsNft,
     });
-    const onVolume = Boolean(readBlipMedia(ctx.config.dataDir, mintIndex, ctx.config.blipsNft));
+    const onVolume = Boolean(readBlipMedia(ctx.config.dataDir, liveIndex, ctx.config.blipsNft));
     if (!isHangarTapeUrl(videoUrl) || !onVolume) {
       return json(
         {
@@ -207,13 +250,13 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     return json({ error: settle.error ?? 'payment not settled', paid: false, charged: false }, 402);
   }
 
-  let tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${mintIndex}`;
+  let tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${liveIndex}`;
   let minted;
   try {
     minted = await ctx.blipsMinter.mint({
       ownerWallet,
       tokenURI,
-      mintIndex,
+      mintIndex: liveIndex,
     });
   } catch (err) {
     return json(
@@ -229,8 +272,8 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
     );
   }
 
-  if (minted.tokenId !== mintIndex) {
-    copyBlipMedia(ctx.config.dataDir, mintIndex, minted.tokenId, ctx.config.blipsNft);
+  if (minted.tokenId !== liveIndex) {
+    copyBlipMedia(ctx.config.dataDir, liveIndex, minted.tokenId, ctx.config.blipsNft);
     tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${minted.tokenId}`;
     videoUrl = hangarMediaUrl(ctx.config.extractBaseUrl, minted.tokenId);
   }
