@@ -139,13 +139,24 @@ class RpcCardRegistrar implements CardRegistrar {
     }
     const agentId = Number(minted);
     if (!Number.isInteger(agentId) || agentId <= 0) throw new Error('8004 mint id missing');
-    const ownerNow = (await publicClient.readContract({
-      address: IDENTITY_REGISTRY,
-      abi,
-      functionName: 'ownerOf',
-      args: [BigInt(agentId)],
-    })) as HexAddress;
     const payer = normalizeAddress(to);
+    let ownerNow: HexAddress | undefined;
+    for (let i = 0; i < 8; i += 1) {
+      try {
+        ownerNow = (await publicClient.readContract({
+          address: IDENTITY_REGISTRY,
+          abi,
+          functionName: 'ownerOf',
+          args: [BigInt(agentId)],
+        })) as HexAddress;
+        break;
+      } catch {
+        await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+      }
+    }
+    if (!ownerNow) {
+      return { agentId, agentURI, owner: normalizeAddress(account.address), txHash: hash, transferred: false };
+    }
     if (payer.toLowerCase() === ownerNow.toLowerCase()) {
       return { agentId, agentURI, owner: payer, txHash: hash, transferred: true };
     }
