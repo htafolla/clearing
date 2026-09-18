@@ -105,6 +105,7 @@ export async function handleBlip(req: Request, ctx: ClearingContext): Promise<Re
       priceFinal: true,
       mintIndexSource: 'settledPaid',
     },
+    maxTimeoutSeconds: 180,
   });
   const quote = buildQuote(
     requirements,

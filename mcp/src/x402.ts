@@ -39,6 +39,7 @@ export function buildRequirements(opts: {
   resource: string;
   description: string;
   extra?: Omit<PaymentExtra, 'name' | 'version'>;
+  maxTimeoutSeconds?: number;
 }): PaymentRequirements {
   return {
     scheme: 'exact',
@@ -49,7 +50,7 @@ export function buildRequirements(opts: {
     resource: opts.resource,
     description: opts.description,
     mimeType: 'application/json',
-    maxTimeoutSeconds: 60,
+    maxTimeoutSeconds: opts.maxTimeoutSeconds ?? 60,
     extra: { ...opts.extra, ...baseUsdcEip712Domain() },
   };
 }

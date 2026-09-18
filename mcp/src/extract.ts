@@ -286,6 +286,7 @@ function x402WellKnown(reqUrl: URL): Record<string, unknown> {
       `${origin}/v1/extract?url=https://example.com`,
       `${origin}/v1/witness?url=https://example.com`,
       `${origin}/v1/pin`,
+      `${origin}/v1/blip?picture=motion:orb&brief=hello`,
     ];
   }
   return body;
