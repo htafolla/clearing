@@ -4,6 +4,7 @@ import { handleExtract } from './extract.js';
 import { handleListed } from './listed.js';
 import { handlePin } from './pin.js';
 import { handleWitness } from './witness.js';
+import { handleSkim } from './skim.js';
 import { handleCard } from './card.js';
 import type { ClearingContext } from './context.js';
 
@@ -18,6 +19,8 @@ export function isExtractPath(pathname: string): boolean {
     pathname === '/v1/catalog' ||
     pathname === '/v1/witness' ||
     pathname.startsWith('/v1/witness') ||
+    pathname === '/v1/skim' ||
+    pathname.startsWith('/v1/skim') ||
     pathname === '/v1/blip' ||
     pathname.startsWith('/v1/blip') ||
     pathname === '/v1/card' ||
@@ -39,6 +42,8 @@ export async function handleHangar(req: Request, ctx: ClearingContext): Promise<
   if (pin) return pin;
   const witness = await handleWitness(req, ctx);
   if (witness) return witness;
+  const skim = await handleSkim(req, ctx);
+  if (skim) return skim;
   const blip = await handleBlip(req, ctx);
   if (blip) return blip;
   const card = await handleCard(req, ctx);

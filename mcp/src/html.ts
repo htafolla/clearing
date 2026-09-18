@@ -1,3 +1,30 @@
+export function parseSkim(html: string, baseUrl: string, linkCap: number): { title: string; links: string[] } {
+  const title =
+    textOf(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '') ||
+    textOf(html.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i)?.[1] ?? '') ||
+    textOf(html.match(/content=["']([^"']+)["'][^>]*property=["']og:title["']/i)?.[1] ?? '') ||
+    '';
+  const links: string[] = [];
+  const seen = new Set<string>();
+  const re = /<a\b[^>]*href=["']([^"'#]+)["'][^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) && links.length < linkCap) {
+    const href = (m[1] ?? '').trim();
+    if (!href || href.startsWith('javascript:') || href.startsWith('mailto:')) continue;
+    let abs: string;
+    try {
+      abs = new URL(href, baseUrl).toString();
+    } catch {
+      continue;
+    }
+    if (!abs.startsWith('http://') && !abs.startsWith('https://')) continue;
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    links.push(abs);
+  }
+  return { title, links };
+}
+
 export function htmlToMarkdown(html: string, maxChars: number): { title: string; markdown: string } {
   const title =
     textOf(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '') ||

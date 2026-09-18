@@ -22,6 +22,7 @@ Agent mint: x402 pay endpoint. GET https://clearing.rippel.ai/v1/blip?picture=mo
 listed: GET /v1/listed (public, unpaid)
 online: GET /v1/online (same gates; health ok within 15 min)
 catalog: GET /v1/catalog (public, unpaid). To list: pin + Groover DID + solar + live shop.
+skim: GET /v1/skim?url= — $0.01. title, textHash, bytes, links[]. Not extract markdown.
 card: POST /v1/card — $0.05 USDC. Paste shops JSON. Hangar register(string) + transfer to payer. No agent ETH. Then pin.
 locker: GET /v1/locker?from=0x unpaid.
 
