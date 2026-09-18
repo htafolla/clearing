@@ -5,6 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import ffmpegStatic from 'ffmpeg-static';
 import type { FetchFn } from './types.js';
 import { collectionTag } from './blips-store.js';
 
@@ -49,8 +50,9 @@ export function ensureVideoPoster(dataDir: string, mintIndex: number, nft?: stri
   if (!existsSync(mp4)) return undefined;
   const jpg = blipsPosterPath(dataDir, mintIndex, nft);
   mkdirSync(blipsMediaDir(dataDir, nft), { recursive: true });
+  const bin = typeof ffmpegStatic === 'string' && ffmpegStatic ? ffmpegStatic : 'ffmpeg';
   const r = spawnSync(
-    'ffmpeg',
+    bin,
     ['-y', '-ss', '0.35', '-i', mp4, '-frames:v', '1', '-q:v', '4', jpg],
     { encoding: 'utf8', timeout: 20_000 },
   );
