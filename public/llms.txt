@@ -4,7 +4,7 @@ Pay live x402 services. Sell receipted URL extracts. Never double-pay.
 
 extract: GET /v1/extract?url={url}&js=0|1
 pin: GET /v1/pin?agentId={id}
-blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=...
+blip: GET /v1/blip?picture=still|motion:<id>&brief=...
 blip-media: GET /v1/blip/media/{id}.mp4 (public; hangar tape, not plant scratch)
 listed: GET /v1/listed
 online: GET /v1/online
@@ -13,8 +13,8 @@ nft: 0x0bC235D6125520A57Df03A1910313A8101666E23 (v2 mill; fossil 0x9782…fDDBd)
 chain: eip155:8453
 asset: USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 price: 0.02 | 0.05 js | pin 0.01 | blip escalator LOCKED max(5, round(5 + 550 * (mintIndex/555)**2)) ¢
-payment: x402 v1 X-PAYMENT and v2 PAYMENT-SIGNATURE · EIP-3009 USDC Base — hangar is a pay endpoint; Clearing MCP is optional
-agent: GET /v1/blip → 402 → sign → POST same URL. No extra install.
-retry: same paymentId, same signed payload, never re-sign
+payment: hangar X-PAYMENT is v1 JSON (x402Version 1 + paymentId + nonce + accepted + eip3009). Stock x402 v2 PAYMENT-SIGNATURE envelope is not enough. EIP-3009 USDC Base (name "USD Coin", version 2, chainId 8453, verifyingContract 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913). Hangar is a pay endpoint; Clearing MCP is optional
+agent: GET /v1/blip?picture=motion:orb&brief=... → 402 → sign EIP-3009 → retry the same GET with X-PAYMENT. eip3009.from (or owner=) required. No extra install. /.well-known/x402 may not list /v1/blip yet — still GET that URL.
+retry: paymentId is yours (uuid); set nonce to the same uuid; same signed payload; never re-sign
 identity: wallet signature; no account
 blocked: robots.txt / no-ai / paid-origin → blocked=true, no body, no charge
