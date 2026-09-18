@@ -187,7 +187,7 @@ describe('x402 v2 + bazaar', () => {
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(1);
   });
 
-  it('/.well-known/x402 keeps ATC agentToolsVerify and adds probe resources', async () => {
+  it('/.well-known/x402 keeps ATC agentToolsVerify; empty catalog → resources []', async () => {
     const prev = process.env.CLEARING_AGENT_TOOLS_VERIFY;
     delete process.env.CLEARING_AGENT_TOOLS_VERIFY;
     delete process.env.AGENT_TOOLS_VERIFY_DESCRIPTOR;
@@ -201,12 +201,7 @@ describe('x402 v2 + bazaar', () => {
       };
       expect(body.agentToolsVerify).toBe('atc_rnW0Dzjm-5VcJzsY7wGmYtjr1jtncK69');
       expect(body.x402Version).toBe(2);
-      expect(body.resources).toEqual(
-        expect.arrayContaining([
-          'https://clearing.rippel.ai/v1/extract?url=https://example.com',
-          'https://clearing.rippel.ai/v1/witness?url=https://example.com',
-        ]),
-      );
+      expect(body.resources).toEqual([]);
     } finally {
       if (prev === undefined) delete process.env.CLEARING_AGENT_TOOLS_VERIFY;
       else process.env.CLEARING_AGENT_TOOLS_VERIFY = prev;

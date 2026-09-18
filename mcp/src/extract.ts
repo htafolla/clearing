@@ -8,6 +8,7 @@ import { ClearingError } from './errors.js';
 import { assertPublicExtractTarget } from './origin.js';
 import { hasNoAiSignal, isPathDisallowed } from './robots.js';
 import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders, type BazaarDiscovery } from './x402.js';
+import { buildCatalog, catalogShopUrls } from './listed.js';
 import type { ClearingContext } from './context.js';
 import type { ExtractResult } from './types.js';
 
@@ -28,7 +29,7 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
     return agentToolsVerifyTxt(url);
   }
   if (url.pathname === '/.well-known/x402') {
-    return json(x402WellKnown(url));
+    return json(await x402WellKnown(url, ctx));
   }
   if (url.pathname === '/openapi.json') {
     return json(openapiDoc(url));
@@ -261,8 +262,10 @@ function agentToolsVerifyTxt(url: URL): Response {
  * GET /.well-known/x402 — ATC descriptor claim.
  * Override with CLEARING_AGENT_TOOLS_VERIFY or AGENT_TOOLS_VERIFY_DESCRIPTOR.
  * Do not reuse AGENT_TOOLS_VERIFY_TOKEN_RAILWAY (that is the verify.txt railway claim).
+ * resources[] is catalog shop URLs (listed board), not mill extract/witness/pin/blip.
  */
-function x402WellKnown(reqUrl: URL): Record<string, unknown> {
+async function x402WellKnown(reqUrl: URL, ctx: ClearingContext): Promise<Record<string, unknown>> {
+  void reqUrl;
   let body: Record<string, unknown> = { agentToolsVerify: X402_DESCRIPTOR_TOKEN };
   try {
     const raw = readFileSync(join(PUBLIC_DIR, '.well-known/x402'), 'utf8');
@@ -279,16 +282,8 @@ function x402WellKnown(reqUrl: URL): Record<string, unknown> {
     ''
   ).trim();
   if (token) body.agentToolsVerify = token;
-  const origin = `${reqUrl.protocol}//${reqUrl.host}`;
   if (body.x402Version === undefined) body.x402Version = 2;
-  if (body.resources === undefined) {
-    body.resources = [
-      `${origin}/v1/extract?url=https://example.com`,
-      `${origin}/v1/witness?url=https://example.com`,
-      `${origin}/v1/pin`,
-      `${origin}/v1/blip?picture=motion:orb&brief=hello`,
-    ];
-  }
+  body.resources = catalogShopUrls(await buildCatalog(ctx));
   return body;
 }
 
@@ -357,7 +352,8 @@ pin: GET /v1/pin?agentId={id}
 blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=...
 listed: GET /v1/listed
 online: GET /v1/online
-rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store + online (health ok within 15 min) → listed. Pin alone is not enough. Identity-only cards are not listed. No extra directory fee.
+catalog: GET /v1/catalog
+rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store + online (health ok within 15 min) → listed. Pin alone is not enough. Identity-only cards are not listed. No extra directory fee. Catalog is the listed board, not hardcoded mill routes.
 chain: eip155:8453
 asset: USDC
 retry: same paymentId, never re-sign

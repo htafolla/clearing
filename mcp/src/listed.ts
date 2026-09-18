@@ -2,6 +2,7 @@
  * Hangar board: successful pin settle → public list. No second directory fee.
  * Online/certified: Groover + Dynamo solar + live MCP/store + health ok within N minutes.
  * N = probeIntervalMs (default 15 minutes).
+ * Catalog (clearing-catalog/0) is this board, not hardcoded mill routes.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -33,6 +34,27 @@ export type PublicListedRow = {
   solar?: string;
   healthAt?: string;
   live: true;
+};
+
+export const CATALOG_PROTOCOL = 'clearing-catalog/0' as const;
+
+export type CatalogShop = {
+  id: string;
+  url: string;
+};
+
+export type CatalogHangar = {
+  agentId: number;
+  groover: string;
+  solar: string;
+  storeUrl?: string;
+  mcpUrl?: string;
+  shops: CatalogShop[];
+};
+
+export type Catalog = {
+  protocol: typeof CATALOG_PROTOCOL;
+  hangars: CatalogHangar[];
 };
 
 export interface ListedBoard {
@@ -161,7 +183,18 @@ export function isHealthFresh(healthAt: string | undefined, now: Date, windowMs:
 
 export async function handleListed(req: Request, ctx: ListedHttpCtx): Promise<Response | undefined> {
   const url = new URL(req.url);
-  if (url.pathname !== '/v1/listed' && url.pathname !== '/v1/online') return undefined;
+  if (url.pathname !== '/v1/listed' && url.pathname !== '/v1/online' && url.pathname !== '/v1/catalog') {
+    return undefined;
+  }
+  const rows = await liveListedRows(ctx);
+  const body = url.pathname === '/v1/catalog' ? catalogFromListed(rows) : rows;
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+export async function liveListedRows(ctx: ListedHttpCtx): Promise<PublicListedRow[]> {
   const windowMs = ctx.config.probeIntervalMs;
   const now = ctx.now();
   const rows: PublicListedRow[] = [];
@@ -169,10 +202,62 @@ export async function handleListed(req: Request, ctx: ListedHttpCtx): Promise<Re
     const live = await onlineRow(row, ctx, now, windowMs);
     if (live) rows.push(live);
   }
-  return new Response(JSON.stringify(rows), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return rows;
+}
+
+/** Last path segment of storeUrl, or `shop`. Card shops are not on the listed board. */
+export function shopIdFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname.replace(/\/+$/, '');
+    const last = path.split('/').filter(Boolean).pop();
+    return last || 'shop';
+  } catch {
+    return 'shop';
+  }
+}
+
+export function shopsFromStoreUrl(storeUrl: string | undefined): CatalogShop[] {
+  if (!storeUrl) return [];
+  return [{ id: shopIdFromUrl(storeUrl), url: storeUrl }];
+}
+
+export function catalogHangar(row: PublicListedRow): CatalogHangar | undefined {
+  if (!row.groover || !row.solar) return undefined;
+  const hangar: CatalogHangar = {
+    agentId: row.agentId,
+    groover: row.groover,
+    solar: row.solar,
+    shops: shopsFromStoreUrl(row.storeUrl),
+  };
+  if (row.storeUrl) hangar.storeUrl = row.storeUrl;
+  if (row.mcpUrl) hangar.mcpUrl = row.mcpUrl;
+  return hangar;
+}
+
+export function catalogFromListed(rows: PublicListedRow[]): Catalog {
+  const hangars: CatalogHangar[] = [];
+  for (const row of rows) {
+    const hangar = catalogHangar(row);
+    if (hangar) hangars.push(hangar);
+  }
+  return { protocol: CATALOG_PROTOCOL, hangars };
+}
+
+export async function buildCatalog(ctx: ListedHttpCtx): Promise<Catalog> {
+  return catalogFromListed(await liveListedRows(ctx));
+}
+
+export function catalogShopUrls(catalog: Catalog): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const hangar of catalog.hangars) {
+    for (const shop of hangar.shops) {
+      if (seen.has(shop.url)) continue;
+      seen.add(shop.url);
+      urls.push(shop.url);
+    }
+  }
+  return urls;
 }
 
 async function onlineRow(

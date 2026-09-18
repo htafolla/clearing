@@ -8,7 +8,8 @@ blip: GET /v1/blip?picture=still|motion:<id>&brief=...
 blip-media: GET /v1/blip/media/{id}.mp4 (public; hangar tape, not plant scratch)
 listed: GET /v1/listed
 online: GET /v1/online
-rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store (tools / 402 / health) + online (health ok within 15 min) → listed. N=15 minutes (CLEARING_PROBE_INTERVAL_MS / probeIntervalMs). Pin alone is not enough. Identity-only / missing Groover or solar are not listed. No extra directory fee.
+catalog: GET /v1/catalog
+rule: pin ($0.01 USDC Base) + Groover (DID/GRVR) + Dynamo solar (PASS or citation) + live HTTPS MCP or hangar store (tools / 402 / health) + online (health ok within 15 min) → listed. To list: pin + Groover DID + solar + live shop. N=15 minutes (CLEARING_PROBE_INTERVAL_MS / probeIntervalMs). Pin alone is not enough. Identity-only / missing Groover or solar are not listed. No extra directory fee. Catalog is listed hangars, not hardcoded mill routes.
 nft: 0x0bC235D6125520A57Df03A1910313A8101666E23 (v2 mill; fossil 0x9782…fDDBd)
 chain: eip155:8453
 asset: USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913

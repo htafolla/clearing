@@ -218,6 +218,81 @@ describe('hangar listed board', () => {
     expect(ctx.facilitator.debitCount()).toBe(0);
   });
 
+  it('unlisted hangar (no pin / no groover) is not in catalog', async () => {
+    const unpaidCtx = pinCtx();
+    await handlePin(new Request('http://127.0.0.1/v1/pin?agentId=86025'), unpaidCtx);
+    const unpaidCatalog = await handleListed(new Request('http://127.0.0.1/v1/catalog'), unpaidCtx);
+    expect(await unpaidCatalog!.json()).toEqual({ protocol: 'clearing-catalog/0', hangars: [] });
+
+    const noGroover = pinCtx({
+      name: 'shop-only',
+      endpoints: { mcp: MCP_URL, http: STORE_URL },
+      services: [],
+      groover: undefined,
+    });
+    const paid = await payPin(noGroover, 86025, 'pin-no-groover-catalog');
+    expect(paid?.status).toBe(200);
+    expect(((await paid!.json()) as { listed: boolean }).listed).toBe(false);
+    const catalog = await handleListed(new Request('http://127.0.0.1/v1/catalog'), noGroover);
+    expect(await catalog!.json()).toEqual({ protocol: 'clearing-catalog/0', hangars: [] });
+  });
+
+  it('pin + Groover DID + solar + live shop lists catalog groover + storeUrl', async () => {
+    const ctx = pinCtx();
+    const paid = await payPin(ctx, 86025, 'pin-catalog');
+    expect(((await paid!.json()) as { listed: boolean }).listed).toBe(true);
+    const catalog = await handleListed(new Request('http://127.0.0.1/v1/catalog'), ctx);
+    expect(catalog?.status).toBe(200);
+    expect(ctx.facilitator.debitCount()).toBe(1);
+    const body = (await catalog!.json()) as {
+      protocol: string;
+      hangars: Array<{
+        agentId: number;
+        groover: string;
+        solar: string;
+        storeUrl?: string;
+        mcpUrl?: string;
+        shops: Array<{ id: string; url: string }>;
+      }>;
+    };
+    expect(body.protocol).toBe('clearing-catalog/0');
+    expect(body.hangars).toHaveLength(1);
+    expect(body.hangars[0]?.agentId).toBe(86025);
+    expect(body.hangars[0]?.groover).toBe(GROOVER_DID);
+    expect(body.hangars[0]?.solar).toBe(SOLAR_CITATION);
+    expect(body.hangars[0]?.storeUrl).toBe(STORE_URL);
+    expect(body.hangars[0]?.mcpUrl).toBe(MCP_URL);
+    expect(body.hangars[0]?.shops).toEqual([{ id: 'extract', url: STORE_URL }]);
+    expect(body.hangars[0]?.shops.map((s) => s.id)).not.toEqual(['extract', 'witness', 'pin', 'blip']);
+  });
+
+  it('/.well-known/x402 resources are catalog shop URLs when a hangar is listed', async () => {
+    const ctx = pinCtx();
+    await payPin(ctx, 86025, 'pin-x402-catalog');
+    const res = await handleExtract(new Request('http://127.0.0.1/.well-known/x402'), ctx);
+    const body = (await res.json()) as { resources: string[] };
+    expect(body.resources).toEqual([STORE_URL]);
+    expect(body.resources).not.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('/v1/extract?url='),
+        expect.stringContaining('/v1/witness'),
+        expect.stringContaining('/v1/pin'),
+        expect.stringContaining('/v1/blip'),
+      ]),
+    );
+  });
+
+  it('empty listed board → catalog { protocol, hangars: [] } and x402 resources []', async () => {
+    const ctx = pinCtx();
+    const catalog = await handleListed(new Request('http://127.0.0.1/v1/catalog'), ctx);
+    expect(catalog?.status).toBe(200);
+    expect(await catalog!.json()).toEqual({ protocol: 'clearing-catalog/0', hangars: [] });
+    const x402 = await handleExtract(new Request('http://127.0.0.1/.well-known/x402'), ctx);
+    const body = (await x402.json()) as { resources: string[] };
+    expect(body.resources).toEqual([]);
+    expect(ctx.facilitator.debitCount()).toBe(0);
+  });
+
   it('ignores non-listed paths', async () => {
     const ctx = pinCtx();
     expect(await handleListed(new Request('http://127.0.0.1/v1/pin?agentId=1'), ctx)).toBeUndefined();
@@ -343,6 +418,8 @@ describe('hangar listed board', () => {
     t += 16 * 60 * 1000;
     const dead = await handleListed(new Request('http://127.0.0.1/v1/online'), ctx);
     expect(await dead!.json()).toEqual([]);
+    const deadCatalog = await handleListed(new Request('http://127.0.0.1/v1/catalog'), ctx);
+    expect(await deadCatalog!.json()).toEqual({ protocol: 'clearing-catalog/0', hangars: [] });
   });
 
   it('llms.txt says pin + Groover + solar + live MCP/store + online → listed', async () => {
@@ -354,6 +431,8 @@ describe('hangar listed board', () => {
     expect(text).toMatch(/health ok within 15 min/i);
     expect(text).toContain('listed: GET /v1/listed');
     expect(text).toContain('online: GET /v1/online');
+    expect(text).toContain('catalog: GET /v1/catalog');
+    expect(text).toMatch(/To list: pin \+ Groover DID \+ solar \+ live shop/);
     expect(text).toMatch(/Identity-only \/ missing Groover or solar are not listed/);
   });
 
