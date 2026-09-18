@@ -457,12 +457,19 @@ describe('hangar listed board', () => {
     expect(body.protocol).toBe('clearing-catalog/0');
     expect(body.hangars).toHaveLength(1);
     expect(body.hangars[0]?.groover).toBe(GROOVER_DID);
-    expect(body.hangars[0]?.shops.map((s) => s.id)).toEqual(['extract', 'witness', 'pin', 'blip']);
+    expect(body.hangars[0]?.shops.map((s) => s.id)).toEqual([
+      'extract',
+      'witness',
+      'pin',
+      'blip',
+      'card',
+    ]);
     expect(body.hangars[0]?.shops.map((s) => s.url)).toEqual([
       `${origin}/v1/extract`,
       `${origin}/v1/witness`,
       `${origin}/v1/pin`,
       `${origin}/v1/blip`,
+      `${origin}/v1/card`,
     ]);
     const x402 = await handleExtract(new Request(`${origin}/.well-known/x402`), ctx);
     const xbody = (await x402.json()) as { resources: string[] };
@@ -471,6 +478,7 @@ describe('hangar listed board', () => {
       `${origin}/v1/witness`,
       `${origin}/v1/pin`,
       `${origin}/v1/blip`,
+      `${origin}/v1/card`,
     ]);
   });
 

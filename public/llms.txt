@@ -4,6 +4,8 @@ Pay live x402 services. Sell receipted URL extracts. Never double-pay.
 
 extract: GET /v1/extract?url={url}&js=0|1
 pin: GET /v1/pin?agentId={id}
+card: POST /v1/card JSON shops card (or GET ?uri=) — $0.05 USDC. Hangar pays ETH, transfers ERC-8004 to payer. Then pin that agentId.
+locker: GET /v1/locker?from=0x (unpaid; cards + blips this wallet paid for)
 blip: GET /v1/blip?picture=still|motion:<id>&brief=...
 blip-media: GET /v1/blip/media/{id}.mp4 (public; hangar tape, not plant scratch)
 listed: GET /v1/listed

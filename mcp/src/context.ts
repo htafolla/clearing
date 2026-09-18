@@ -16,6 +16,8 @@ import { createBlipPlant, FakeBlipPlant, type BlipPlant } from './blips-plant.js
 import { createBlipsMinter, MemoryBlipsMinter, type BlipsMinter } from './blips-nft.js';
 import { FileBlipsStore, MemoryBlipsStore, blipsPath, type BlipsStore } from './blips-store.js';
 import { decodePayload } from './x402.js';
+import { FileCardStore, MemoryCardStore, cardsPath, type CardStore } from './card-store.js';
+import { createCardRegistrar, MemoryCardRegistrar, type CardRegistrar } from './card-register.js';
 import type { ClearingConfig, FetchFn } from './types.js';
 
 export type JsRenderer = (url: string) => Promise<{ html: string; finalUrl: string }>;
@@ -34,6 +36,8 @@ export type ClearingContext = {
   blips: BlipsStore;
   blipPlant: BlipPlant;
   blipsMinter: BlipsMinter;
+  cards: CardStore;
+  cardRegistrar: CardRegistrar;
   renderer?: JsRenderer;
   resolveHost: (hostname: string) => Promise<string[]>;
   liveDiscoverOrigins: () => Set<string>;
@@ -54,6 +58,8 @@ export type ContextOverrides = {
   blips?: BlipsStore;
   blipPlant?: BlipPlant;
   blipsMinter?: BlipsMinter;
+  cards?: CardStore;
+  cardRegistrar?: CardRegistrar;
   renderer?: JsRenderer;
   resolveHost?: (hostname: string) => Promise<string[]>;
   persist?: boolean;
@@ -127,6 +133,18 @@ export function createContext(overrides: ContextOverrides = {}): ClearingContext
     blipsMinter:
       overrides.blipsMinter ??
       (config.allowFake ? new MemoryBlipsMinter() : createBlipsMinter({ fetchFn: overrides.fetch, allowFake: false })),
+    cards:
+      overrides.cards ??
+      (overrides.persist ? new FileCardStore(cardsPath(config.dataDir)) : new MemoryCardStore()),
+    cardRegistrar:
+      overrides.cardRegistrar ??
+      (config.allowFake
+        ? new MemoryCardRegistrar()
+        : createCardRegistrar({
+            allowFake: false,
+            privateKey: process.env.CLEARING_8004_KEY,
+            rpcUrl: process.env.CLEARING_RPC_URL,
+          })),
     renderer: overrides.renderer,
     resolveHost: overrides.resolveHost ?? (async (hostname) => {
       const { promises: dns } = await import('node:dns');
