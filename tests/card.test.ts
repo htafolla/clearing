@@ -82,8 +82,10 @@ describe('card mill', () => {
       owner: string;
       agentURI: string;
       pin: string;
+      transferred: boolean;
     };
     expect(body.paid).toBe(true);
+    expect(body.transferred).toBe(true);
     expect(body.agentId).toBe(1);
     expect(body.owner.toLowerCase()).toBe(FROM.toLowerCase());
     expect(body.agentURI).toMatch(/\/v1\/card\/.+\.json$/);

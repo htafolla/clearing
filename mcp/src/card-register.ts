@@ -9,6 +9,7 @@ export type CardRegisterResult = {
   agentURI: string;
   owner: HexAddress;
   txHash: HexAddress;
+  transferred: boolean;
 };
 
 export interface CardRegistrar {
@@ -30,7 +31,7 @@ export class MemoryCardRegistrar implements CardRegistrar {
     const owner = normalizeAddress(to);
     const txHash = (`0x${agentId.toString(16).padStart(8, '0')}${'ab'.repeat(28)}`) as HexAddress;
     void this.operator;
-    return { agentId, agentURI, owner, txHash };
+    return { agentId, agentURI, owner, txHash, transferred: true };
   }
 }
 
@@ -85,6 +86,13 @@ class RpcCardRegistrar implements CardRegistrar {
       },
       {
         type: 'function',
+        name: 'ownerOf',
+        stateMutability: 'view',
+        inputs: [{ name: 'tokenId', type: 'uint256' }],
+        outputs: [{ type: 'address' }],
+      },
+      {
+        type: 'function',
         name: 'transferFrom',
         stateMutability: 'nonpayable',
         inputs: [
@@ -96,51 +104,71 @@ class RpcCardRegistrar implements CardRegistrar {
       },
       {
         type: 'event',
-        name: 'Registered',
+        name: 'Transfer',
         inputs: [
-          { name: 'agentId', type: 'uint256', indexed: true },
-          { name: 'agentURI', type: 'string', indexed: false },
-          { name: 'owner', type: 'address', indexed: true },
+          { name: 'from', type: 'address', indexed: true },
+          { name: 'to', type: 'address', indexed: true },
+          { name: 'tokenId', type: 'uint256', indexed: true },
         ],
       },
     ] as const;
-    const hash = await wallet.writeContract({
+    const simulated = await publicClient.simulateContract({
       address: IDENTITY_REGISTRY,
       abi,
       functionName: 'register',
       args: [agentURI],
       account,
-      chain: base,
     });
+    const hash = await wallet.writeContract(simulated.request);
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== 'success') throw new Error('8004 register reverted');
-    let agentId = 0;
+    const zero = '0x0000000000000000000000000000000000000000';
+    let minted = simulated.result;
     for (const log of receipt.logs) {
       try {
         const decoded = decodeEventLog({ abi, data: log.data, topics: log.topics });
-        if (decoded.eventName === 'Registered') {
-          const args = decoded.args as { agentId?: bigint };
-          if (args.agentId !== undefined) agentId = Number(args.agentId);
+        if (decoded.eventName === 'Transfer') {
+          const args = decoded.args as { from?: HexAddress; to?: HexAddress; tokenId?: bigint };
+          if (args.from?.toLowerCase() === zero && args.tokenId !== undefined) {
+            minted = args.tokenId;
+          }
         }
       } catch {
         /* skip */
       }
     }
-    if (!agentId) throw new Error('Registered event missing agentId');
+    const agentId = Number(minted);
+    if (!Number.isInteger(agentId) || agentId <= 0) throw new Error('8004 mint id missing');
+    const ownerNow = (await publicClient.readContract({
+      address: IDENTITY_REGISTRY,
+      abi,
+      functionName: 'ownerOf',
+      args: [BigInt(agentId)],
+    })) as HexAddress;
     const payer = normalizeAddress(to);
-    if (payer.toLowerCase() !== account.address.toLowerCase()) {
+    if (payer.toLowerCase() === ownerNow.toLowerCase()) {
+      return { agentId, agentURI, owner: payer, txHash: hash, transferred: true };
+    }
+    try {
       const xfer = await wallet.writeContract({
         address: IDENTITY_REGISTRY,
         abi,
         functionName: 'transferFrom',
-        args: [account.address, payer, BigInt(agentId)],
+        args: [ownerNow, payer, BigInt(agentId)],
         account,
         chain: base,
       });
       const xReceipt = await publicClient.waitForTransactionReceipt({ hash: xfer });
       if (xReceipt.status !== 'success') throw new Error('8004 transfer reverted');
-      return { agentId, agentURI, owner: payer, txHash: xfer };
+      return { agentId, agentURI, owner: payer, txHash: xfer, transferred: true };
+    } catch {
+      return {
+        agentId,
+        agentURI,
+        owner: normalizeAddress(ownerNow),
+        txHash: hash,
+        transferred: false,
+      };
     }
-    return { agentId, agentURI, owner: payer, txHash: hash };
   }
 }

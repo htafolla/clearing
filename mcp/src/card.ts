@@ -119,8 +119,11 @@ export async function handleCard(req: Request, ctx: ClearingContext): Promise<Re
     agentURI: minted.agentURI,
     owner: minted.owner,
     txHash: minted.txHash,
+    transferred: minted.transferred,
     pin,
-    next: 'GET pin URL with same x402 envelope ($0.01) to list',
+    next: minted.transferred
+      ? 'GET pin URL with same x402 envelope ($0.01) to list'
+      : 'Token minted; transfer to payer pending. Pin still lists. GET pin URL ($0.01).',
   }, 200);
 }
 
