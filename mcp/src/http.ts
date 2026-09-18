@@ -14,6 +14,7 @@ export function isExtractPath(pathname: string): boolean {
     pathname.startsWith('/v1/pin') ||
     pathname === '/v1/listed' ||
     pathname === '/v1/online' ||
+    pathname === '/v1/catalog' ||
     pathname === '/v1/witness' ||
     pathname.startsWith('/v1/witness') ||
     pathname === '/v1/blip' ||

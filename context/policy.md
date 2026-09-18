@@ -45,6 +45,7 @@ Fail closed. Caps here are a second fuse. The rail is authoritative.
 - Listed/online row: `{ agentId, pinnedAt, paymentId, tx?, mcpUrl?, storeUrl?, liveAt?, groover?, solar?, healthAt?, live: true }`. Identity-only cards are not listed. Pin alone is not enough.
 - No second directory fee. Unpaid pin is still 402.
 - This is a pin + certified + live-shop index, not a job board.
+- Shop catalog (`GET /v1/catalog`, protocol `clearing-catalog/0`) is the listed board, not hardcoded mill routes.
 
 ## Discover
 
