@@ -1,5 +1,6 @@
 import type { ClearingContext } from './context.js';
 import { maskAddress } from './config.js';
+import { owsWalletName } from './ows-signer.js';
 import type { Receipt } from './types.js';
 
 export type ReceiptsArgs = {
@@ -30,9 +31,12 @@ export function statusPayload(ctx: ClearingContext): Record<string, unknown> {
     blipEndpoint: `${ctx.config.extractBaseUrl}/v1/blip`,
     agentCardUrl: `${ctx.config.extractBaseUrl}/.well-known/agent.json`,
     lastReceipts: ctx.ledger.list({ limit: 10 }),
+    owsWallet: owsWalletName(),
+    hangar: ctx.config.extractBaseUrl,
+    mint: 'blip picture=motion:orb brief="..." dry_run=false — wait up to 3 min. Fund ZIGZAG_WALLET with USDC on Base.',
     fundedHint:
       ctx.signer.kind === 'fake'
         ? 'fake signer (local). Fund a real rail before production.'
-        : 'Operator funds the rail wallet. Clearing does not hold keys.',
+        : 'Local OWS signs. Hosted hangar mills. No 8789 rail. Keys stay in ~/.ows.',
   };
 }

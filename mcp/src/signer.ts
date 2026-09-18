@@ -1,6 +1,7 @@
 import { AwalSigner } from './awal.js';
 import { fail } from './errors.js';
 import { encodePayload, signedFromPayload } from './x402.js';
+import { InProcessOwsSigner, isLoopbackSignerUrl } from './ows-signer.js';
 import type { PaymentRequirements, SignedPayment, SignerKind } from './types.js';
 
 export interface Signer {
@@ -89,9 +90,15 @@ export function createSigner(
   }
   if (kind === 'zigzag') {
     const raw = opts.signerUrl ?? process.env.CLEARING_ZIGZAG_URL ?? process.env.CLEARING_SIGNER_URL;
-    if (!raw) fail('rail_missing', 'CLEARING_ZIGZAG_URL or CLEARING_SIGNER_URL required for zigzag signer', 503);
-    const url = raw.endsWith('/sign') ? raw : `${raw.replace(/\/$/, '')}/sign`;
-    return new HttpRailSigner('zigzag', url, opts.fetchFn ?? fetch);
+    if (opts.fetchFn && raw && !isLoopbackSignerUrl(raw)) {
+      const url = raw.endsWith('/sign') ? raw : `${raw.replace(/\/$/, '')}/sign`;
+      return new HttpRailSigner('zigzag', url, opts.fetchFn);
+    }
+    if (raw && !isLoopbackSignerUrl(raw) && process.env.CLEARING_OWS_INPROCESS !== '1') {
+      const url = raw.endsWith('/sign') ? raw : `${raw.replace(/\/$/, '')}/sign`;
+      return new HttpRailSigner('zigzag', url, opts.fetchFn ?? fetch);
+    }
+    return new InProcessOwsSigner();
   }
   if (opts.signerUrl) {
     return new HttpRailSigner(kind, opts.signerUrl, opts.fetchFn ?? fetch);
