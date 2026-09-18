@@ -436,6 +436,44 @@ describe('hangar listed board', () => {
     expect(text).toMatch(/Identity-only \/ missing Groover or solar are not listed/);
   });
 
+  it('house hangar (this origin + Groover DID) catalogs extract/witness/pin/blip', async () => {
+    const ctx = pinCtx();
+    const origin = 'https://clearing.rippel.ai';
+    ctx.listed.add({
+      agentId: 86556,
+      paymentId: 'backfill:86556',
+      pinnedAt: '2026-09-01T00:00:00.000Z',
+      mcpUrl: `${origin}/mcp`,
+      groover: GROOVER_DID,
+      solar: SOLAR_CITATION,
+      liveAt: '2026-09-01T00:00:00.000Z',
+      healthAt: ctx.now().toISOString(),
+    });
+    const catalog = await handleListed(new Request(`${origin}/v1/catalog`), ctx);
+    const body = (await catalog!.json()) as {
+      protocol: string;
+      hangars: Array<{ groover: string; shops: Array<{ id: string; url: string }> }>;
+    };
+    expect(body.protocol).toBe('clearing-catalog/0');
+    expect(body.hangars).toHaveLength(1);
+    expect(body.hangars[0]?.groover).toBe(GROOVER_DID);
+    expect(body.hangars[0]?.shops.map((s) => s.id)).toEqual(['extract', 'witness', 'pin', 'blip']);
+    expect(body.hangars[0]?.shops.map((s) => s.url)).toEqual([
+      `${origin}/v1/extract`,
+      `${origin}/v1/witness`,
+      `${origin}/v1/pin`,
+      `${origin}/v1/blip`,
+    ]);
+    const x402 = await handleExtract(new Request(`${origin}/.well-known/x402`), ctx);
+    const xbody = (await x402.json()) as { resources: string[] };
+    expect(xbody.resources).toEqual([
+      `${origin}/v1/extract`,
+      `${origin}/v1/witness`,
+      `${origin}/v1/pin`,
+      `${origin}/v1/blip`,
+    ]);
+  });
+
   it('canonical registry unchanged', () => {
     expect(IDENTITY_REGISTRY.toLowerCase()).toBe('0x8004a169fb4a3325136eb29fa0ceb6d2e539a432');
   });

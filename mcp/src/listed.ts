@@ -187,7 +187,7 @@ export async function handleListed(req: Request, ctx: ListedHttpCtx): Promise<Re
     return undefined;
   }
   const rows = await liveListedRows(ctx);
-  const body = url.pathname === '/v1/catalog' ? catalogFromListed(rows) : rows;
+  const body = url.pathname === '/v1/catalog' ? catalogFromListed(rows, catalogOrigin(ctx, url)) : rows;
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
@@ -221,30 +221,72 @@ export function shopsFromStoreUrl(storeUrl: string | undefined): CatalogShop[] {
   return [{ id: shopIdFromUrl(storeUrl), url: storeUrl }];
 }
 
-export function catalogHangar(row: PublicListedRow): CatalogHangar | undefined {
+/** House hangar (this Clearing origin) declares mill shops. Third parties keep storeUrl only. */
+export const HOUSE_SHOP_IDS = ['extract', 'witness', 'pin', 'blip'] as const;
+
+export function houseShops(origin: string): CatalogShop[] {
+  const base = origin.replace(/\/$/, '');
+  return HOUSE_SHOP_IDS.map((id) => ({ id, url: `${base}/v1/${id}` }));
+}
+
+export function urlHost(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+export function isHouseHangar(
+  row: Pick<PublicListedRow, 'mcpUrl' | 'storeUrl'>,
+  origins: string[],
+): boolean {
+  const hosts = new Set<string>();
+  for (const origin of origins) {
+    const host = urlHost(origin);
+    if (host) hosts.add(host);
+  }
+  for (const url of [row.mcpUrl, row.storeUrl]) {
+    const host = urlHost(url);
+    if (host && hosts.has(host)) return true;
+  }
+  return false;
+}
+
+export function catalogHangar(row: PublicListedRow, origin = ''): CatalogHangar | undefined {
   if (!row.groover || !row.solar) return undefined;
+  let shops = shopsFromStoreUrl(row.storeUrl);
+  if (shops.length === 0 && origin && isHouseHangar(row, [origin])) {
+    shops = houseShops(origin);
+  }
   const hangar: CatalogHangar = {
     agentId: row.agentId,
     groover: row.groover,
     solar: row.solar,
-    shops: shopsFromStoreUrl(row.storeUrl),
+    shops,
   };
   if (row.storeUrl) hangar.storeUrl = row.storeUrl;
   if (row.mcpUrl) hangar.mcpUrl = row.mcpUrl;
   return hangar;
 }
 
-export function catalogFromListed(rows: PublicListedRow[]): Catalog {
+export function catalogFromListed(rows: PublicListedRow[], origin = ''): Catalog {
   const hangars: CatalogHangar[] = [];
   for (const row of rows) {
-    const hangar = catalogHangar(row);
+    const hangar = catalogHangar(row, origin);
     if (hangar) hangars.push(hangar);
   }
   return { protocol: CATALOG_PROTOCOL, hangars };
 }
 
-export async function buildCatalog(ctx: ListedHttpCtx): Promise<Catalog> {
-  return catalogFromListed(await liveListedRows(ctx));
+export function catalogOrigin(_ctx: ListedHttpCtx, reqUrl?: URL): string {
+  if (reqUrl?.host) return `${reqUrl.protocol}//${reqUrl.host}`;
+  return '';
+}
+
+export async function buildCatalog(ctx: ListedHttpCtx, reqUrl?: URL): Promise<Catalog> {
+  return catalogFromListed(await liveListedRows(ctx), catalogOrigin(ctx, reqUrl));
 }
 
 export function catalogShopUrls(catalog: Catalog): string[] {

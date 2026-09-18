@@ -283,7 +283,7 @@ async function x402WellKnown(reqUrl: URL, ctx: ClearingContext): Promise<Record<
   ).trim();
   if (token) body.agentToolsVerify = token;
   if (body.x402Version === undefined) body.x402Version = 2;
-  body.resources = catalogShopUrls(await buildCatalog(ctx));
+  body.resources = catalogShopUrls(await buildCatalog(ctx, reqUrl));
   return body;
 }
 
