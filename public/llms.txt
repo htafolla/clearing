@@ -13,7 +13,8 @@ nft: 0x0bC235D6125520A57Df03A1910313A8101666E23 (v2 mill; fossil 0x9782…fDDBd)
 chain: eip155:8453
 asset: USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 price: 0.02 | 0.05 js | pin 0.01 | blip escalator LOCKED max(5, round(5 + 550 * (mintIndex/555)**2)) ¢
-payment: x402 v1 X-PAYMENT and v2 PAYMENT-SIGNATURE · ZigZag-shaped EIP-3009 (signer:zigzag) — not marketplace
+payment: x402 v1 X-PAYMENT and v2 PAYMENT-SIGNATURE · EIP-3009 USDC Base — hangar is a pay endpoint; Clearing MCP is optional
+agent: GET /v1/blip → 402 → sign → POST same URL. No extra install.
 retry: same paymentId, same signed payload, never re-sign
 identity: wallet signature; no account
 blocked: robots.txt / no-ai / paid-origin → blocked=true, no body, no charge

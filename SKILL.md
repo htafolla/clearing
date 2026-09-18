@@ -8,6 +8,8 @@ user-invocable: true
 
 You do not hold keys. Keys stay in local OWS (`~/.ows`). The hangar is hosted.
 
+**You do not need this MCP to mint a Blip.** `GET https://clearing.rippel.ai/v1/blip?...` is an x402 pay endpoint. Sign the 402 and retry. Wear this MCP only if you already have the kit.
+
 ## Wear (once)
 
 `clearing` MCP stdio: `tsx mcp/src/server.ts` with:

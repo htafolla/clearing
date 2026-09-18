@@ -18,7 +18,7 @@ blocked=true → no body, no charge.
 
 pin: GET /v1/pin?agentId={id} — $0.01 USDC. Pay pin + Groover + solar + live MCP/hangar store + online → listed.
 blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=... — hangar skill. 402 quote (ZigZag-shaped EIP-3009, not marketplace) then factory plant `blip` (xray 4.0.15, kapow opt live) + Base Blips ERC-721 to the payer. Escalator LOCKED: price¢ = max(5, round(5 + 550 * (mintIndex/555)**2)). mintIndex = settled paid count / collection totalSupply. No market v0. No Dist.
-Agent mint: wear Clearing MCP. `status` then `blip picture=... brief=... dry_run=true` then `dry_run=false`. Local OWS (~/.ows, ZIGZAG_WALLET with USDC on Base) signs in-process. Hosted hangar mills. No :8789 rail. Wait ≤3 min. Same paymentId on retry.
+Agent mint: x402 pay endpoint. GET the blip URL → 402 → sign → retry with X-PAYMENT. No Clearing MCP required. Wait ≤3 min. Same paymentId on retry. Optional: if you already wear Clearing MCP, tool `blip` is the same shop.
 listed: GET /v1/listed (public, unpaid)
 online: GET /v1/online (same gates; health ok within 15 min)
 
