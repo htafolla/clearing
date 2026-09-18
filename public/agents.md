@@ -21,4 +21,4 @@ blip: GET|POST /v1/blip?picture=still|motion:<id>&brief=... — hangar skill. 40
 listed: GET /v1/listed (public, unpaid)
 online: GET /v1/online (same gates; health ok within 15 min)
 
-Public unpaid: /agents.md /llms.txt /.well-known/agent.json /.well-known/x402 /.well-known/agent-tools-verify.txt /v1/listed /v1/online /v1/blip/owned /v1/blip/metadata/:id /v1/blip/media/:id.mp4 /v1/blip/poster/:id.svg /v1/blip/collection
+Public unpaid: /agents.md /llms.txt /.well-known/agent.json /.well-known/x402 /.well-known/agent-tools-verify.txt /v1/listed /v1/online /v1/blip/owned /v1/blip/metadata/:id /v1/blip/media/:id.mp4 /v1/blip/poster/:id.jpg /v1/blip/collection

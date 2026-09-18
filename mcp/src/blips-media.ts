@@ -2,6 +2,7 @@
  * Durable Blip tapes. Plant /artifacts is scratch.
  * Hangar copies the mp4 onto dataDir (Railway volume) and serves /v1/blip/media/:id.mp4
  */
+import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FetchFn } from './types.js';
@@ -27,7 +28,34 @@ export function isHangarTapeUrl(url: string | undefined): boolean {
 }
 
 export function hangarPosterUrl(base: string, mintIndex: number): string {
-  return `${base.replace(/\/$/, '')}/v1/blip/poster/${mintIndex}.svg`;
+  return `${base.replace(/\/$/, '')}/v1/blip/poster/${mintIndex}.jpg`;
+}
+
+export function blipsPosterPath(dataDir: string, mintIndex: number, nft?: string): string {
+  return join(blipsMediaDir(dataDir, nft), `${mintIndex}.jpg`);
+}
+
+export function readBlipPoster(dataDir: string, mintIndex: number, nft?: string): Buffer | undefined {
+  const path = blipsPosterPath(dataDir, mintIndex, nft);
+  if (!existsSync(path)) return undefined;
+  return readFileSync(path);
+}
+
+/** First real frame of the tape. SVG ident is only a fallback. */
+export function ensureVideoPoster(dataDir: string, mintIndex: number, nft?: string): Buffer | undefined {
+  const existing = readBlipPoster(dataDir, mintIndex, nft);
+  if (existing && existing.byteLength > MIN_BYTES) return existing;
+  const mp4 = blipsMediaPath(dataDir, mintIndex, nft);
+  if (!existsSync(mp4)) return undefined;
+  const jpg = blipsPosterPath(dataDir, mintIndex, nft);
+  mkdirSync(blipsMediaDir(dataDir, nft), { recursive: true });
+  const r = spawnSync(
+    'ffmpeg',
+    ['-y', '-ss', '0.35', '-i', mp4, '-frames:v', '1', '-q:v', '4', jpg],
+    { encoding: 'utf8', timeout: 20_000 },
+  );
+  if (r.status !== 0 || !existsSync(jpg)) return undefined;
+  return readFileSync(jpg);
 }
 
 export function parseMediaMintIndex(pathname: string): number | undefined {
@@ -38,7 +66,7 @@ export function parseMediaMintIndex(pathname: string): number | undefined {
 }
 
 export function parsePosterMintIndex(pathname: string): number | undefined {
-  const m = /\/v1\/blip\/poster\/(\d+)(?:\.svg)?$/i.exec(pathname);
+  const m = /\/v1\/blip\/poster\/(\d+)(?:\.(?:svg|jpg|jpeg|png))?$/i.exec(pathname);
   if (!m) return undefined;
   const n = Number.parseInt(m[1]!, 10);
   return Number.isInteger(n) && n >= 0 ? n : undefined;
@@ -90,6 +118,7 @@ export async function archivePlantVideo(opts: {
     if (buf.byteLength < MIN_BYTES) return opts.videoUrl;
     mkdirSync(blipsMediaDir(opts.dataDir, opts.nft), { recursive: true });
     writeFileSync(blipsMediaPath(opts.dataDir, opts.mintIndex, opts.nft), buf);
+    ensureVideoPoster(opts.dataDir, opts.mintIndex, opts.nft);
     return hangarMediaUrl(opts.publicBase, opts.mintIndex);
   } catch {
     return opts.videoUrl;

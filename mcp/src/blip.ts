@@ -20,6 +20,7 @@ import { parseBlipPicture } from './blips-picture.js';
 import {
   archivePlantVideo,
   copyBlipMedia,
+  ensureVideoPoster,
   hangarMediaUrl,
   hangarPosterUrl,
   isHangarTapeUrl,
@@ -631,7 +632,7 @@ function collection(ctx: ClearingContext): Response {
     name: 'Blips',
     symbol: 'BLIP',
     description: '4.44s shorties that blip',
-    image: `${base}/v1/blip/poster/0.svg`,
+    image: `${base}/v1/blip/poster/0.jpg`,
     external_link: 'https://blips.rippel.ai',
     seller_fee_basis_points: 500,
     fee_recipient: ctx.config.payTo,
@@ -642,13 +643,24 @@ function collection(ctx: ClearingContext): Response {
 function poster(url: URL, ctx: ClearingContext): Response {
   const mintIndex = parsePosterMintIndex(url.pathname);
   if (mintIndex === undefined) return json({ error: 'tokenId' }, 400);
+  const frame = ensureVideoPoster(ctx.config.dataDir, mintIndex, ctx.config.blipsNft);
+  if (frame) {
+    return new Response(new Uint8Array(frame), {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
   const receipt = ctx.blips.get(mintIndex);
   const svg = posterSvg(mintIndex, receipt?.picture ?? 'still');
   return new Response(svg, {
     status: 200,
     headers: {
       'Content-Type': 'image/svg+xml; charset=utf-8',
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': 'public, max-age=60',
       'Access-Control-Allow-Origin': '*',
     },
   });
