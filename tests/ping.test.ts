@@ -25,7 +25,7 @@ describe('GET /v1/ping', () => {
       resource: { url: string };
     };
     expect(quoted.accepts[0]?.maxAmountRequired).toBe('10000');
-    expect(quoted.resource.url).toBe('https://clearing.rippel.ai/v1/ping');
+    expect(quoted.resource.url).toBe('https://clearing.rippel.ai/v1/skim');
     const { encodePayload } = await import('../mcp/src/x402.js');
     const header = encodePayload({
       x402Version: 1,
@@ -57,6 +57,17 @@ describe('GET /v1/ping', () => {
     expect(res?.status).toBe(400);
   });
 
+  it('refuses to list /v1/ping as the Bazaar resource', async () => {
+    const ctx = createContext({
+      config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: PAY },
+    });
+    const res = await handlePing(
+      new Request('https://clearing.rippel.ai/v1/ping?url=https://clearing.rippel.ai/v1/ping'),
+      ctx,
+    );
+    expect(res?.status).toBe(400);
+  });
+
   it('paid ping with CDP keys settles Coinbase not ZigZag', async () => {
     const { generateKeyPairSync } = await import('node:crypto');
     const { privateKey } = generateKeyPairSync('ed25519');
@@ -70,17 +81,25 @@ describe('GET /v1/ping', () => {
     process.env.CDP_API_KEY_ID = '00000000-0000-4000-8000-00000000000a';
     process.env.CDP_API_KEY_SECRET = secret;
     const urls: string[] = [];
+    const cataloged: string[] = [];
     try {
       const ctx = createContext({
         config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: PAY },
-        fetch: async (input) => {
+        fetch: async (input, init) => {
           const u = String(input);
           urls.push(u);
           if (u.includes('zigzag')) {
             return new Response('zigzag must not run', { status: 500 });
           }
-          if (u.endsWith('/x402/verify')) return new Response(JSON.stringify({ isValid: true }));
-          if (u.endsWith('/x402/settle')) {
+          if (u.endsWith('/x402/verify') || u.endsWith('/x402/settle')) {
+            const body = JSON.parse(String(init?.body ?? '{}')) as {
+              paymentPayload?: { resource?: { url?: string } };
+            };
+            const resource = body.paymentPayload?.resource?.url ?? '';
+            cataloged.push(resource);
+            expect(resource).toBe('https://clearing.rippel.ai/v1/skim');
+            expect(resource.includes('/v1/ping')).toBe(false);
+            if (u.endsWith('/x402/verify')) return new Response(JSON.stringify({ isValid: true }));
             return new Response(JSON.stringify({ success: true, transaction: `0x${'cd'.repeat(32)}` }));
           }
           if (u.includes('skim')) return new Response('{}', { status: 402 });
@@ -119,6 +138,7 @@ describe('GET /v1/ping', () => {
       expect(body.paid).toBe(true);
       expect(body.facilitator).toBe('cdp');
       expect(body.pings[0]?.live).toBe(true);
+      expect(cataloged[0]).toBe('https://clearing.rippel.ai/v1/skim');
       expect(urls.some((u) => u.includes('/platform/v2/x402/settle'))).toBe(true);
       expect(urls.some((u) => u.includes('zigzag'))).toBe(false);
     } finally {

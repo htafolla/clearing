@@ -7,7 +7,7 @@ skim: GET /v1/skim?url={url} — $0.01. Bounded JSON: finalUrl, title, textHash,
 pin: GET /v1/pin?agentId={id}
 card: POST /v1/card JSON shops card (or GET ?uri=) — $0.05 USDC. Hangar pays ETH, transfers ERC-8004 to payer. Then pin that agentId.
 locker: GET /v1/locker?from=0x (unpaid; cards + blips this wallet paid for)
-ping: GET /v1/ping or ?url= — $0.01. Target unpaid GET live=402. That penny is the CDP Bazaar soak when CDP settles.
+ping: GET /v1/ping?url={shop} — $0.01. Target unpaid GET live=402. CDP Bazaar lists that shop URL, never /v1/ping. MCP 200 does not list.
 blip: GET /v1/blip?picture=still|motion:<id>&brief=...
 blip-media: GET /v1/blip/media/{id}.mp4 (public; hangar tape, not plant scratch)
 listed: GET /v1/listed

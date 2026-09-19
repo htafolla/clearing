@@ -4,6 +4,7 @@ import { cdpBearerJwt, hasCdpKeys } from '../mcp/src/cdp-auth.js';
 import {
   CdpFacilitator,
   MemoryFacilitator,
+  bazaarResourceUrl,
   cdpCatalogResource,
   pingFacilitator,
   toCdpSettleBody,
@@ -26,15 +27,15 @@ function ed25519Secret(): { id: string; secret: string } {
   return { id: '00000000-0000-4000-8000-000000000001', secret };
 }
 
-function expectedPing(): PaymentRequirements {
+function expectedShop(): PaymentRequirements {
   return {
     scheme: 'exact',
     network: 'eip155:8453',
     maxAmountRequired: '10000',
     asset: USDC_BASE,
     payTo: PAY.toLowerCase() as `0x${string}`,
-    resource: 'https://clearing.rippel.ai/v1/ping?url=https://clearing.rippel.ai/v1/skim',
-    description: 'Ping shop (live = 402). Penny indexes Bazaar if CDP settles.',
+    resource: 'https://clearing.rippel.ai/v1/skim?url=https://example.com',
+    description: 'x402 shop. Unpaid GET returns 402.',
     mimeType: 'application/json',
     maxTimeoutSeconds: 60,
     extra: { name: USDC_EIP712_NAME, version: '2' },
@@ -42,7 +43,7 @@ function expectedPing(): PaymentRequirements {
 }
 
 function paidHeader(): string {
-  const req = expectedPing();
+  const req = expectedShop();
   return encodePayload({
     x402Version: 1,
     paymentId: 'ping-cdp-1',
@@ -79,8 +80,8 @@ describe('CDP facilitator', () => {
     expect(claims.uri).toBe('POST api.cdp.coinbase.com/platform/v2/x402/settle');
   });
 
-  it('maps EIP-3009 to v2 exact payload and strips ping query', () => {
-    const req = expectedPing();
+  it('maps EIP-3009 to v2 exact payload and strips shop query, never ping', () => {
+    const req = expectedShop();
     const body = {
       x402Version: 1 as const,
       paymentId: 'ping-cdp-1',
@@ -99,10 +100,15 @@ describe('CDP facilitator', () => {
     const mapped = toCdpSettleBody(body, req);
     expect('error' in mapped).toBe(false);
     if ('error' in mapped) return;
-    expect(mapped.paymentPayload.resource.url).toBe('https://clearing.rippel.ai/v1/ping');
+    expect(mapped.paymentPayload.resource.url).toBe('https://clearing.rippel.ai/v1/skim');
     expect(mapped.paymentPayload.payload.authorization.from).toBe(FROM);
     expect(mapped.paymentPayload.accepted.extra.name).toBe('USD Coin');
-    expect(cdpCatalogResource(req)).toBe('https://clearing.rippel.ai/v1/ping');
+    expect(mapped.paymentPayload.extensions.bazaar.info.input.method).toBe('GET');
+    expect(cdpCatalogResource(req)).toBe('https://clearing.rippel.ai/v1/skim');
+    expect(bazaarResourceUrl('https://clearing.rippel.ai/v1/ping')).toBeUndefined();
+    const pingReq = { ...req, resource: 'https://clearing.rippel.ai/v1/ping' };
+    const refused = toCdpSettleBody(body, pingReq);
+    expect('error' in refused).toBe(true);
   });
 
   it('verify then settle; never posts ZigZag', async () => {
@@ -119,7 +125,7 @@ describe('CDP facilitator', () => {
           paymentPayload?: { resource?: { url?: string } };
         };
         if (u.endsWith('/x402/verify')) {
-          expect(body.paymentPayload?.resource?.url).toBe('https://clearing.rippel.ai/v1/ping');
+          expect(body.paymentPayload?.resource?.url).toBe('https://clearing.rippel.ai/v1/skim');
           return new Response(JSON.stringify({ isValid: true }), { status: 200 });
         }
         if (u.endsWith('/x402/settle')) {
@@ -128,7 +134,7 @@ describe('CDP facilitator', () => {
         return new Response('no', { status: 404 });
       },
     });
-    const out = await rail.settle(paidHeader(), expectedPing());
+    const out = await rail.settle(paidHeader(), expectedShop());
     expect(out.ok).toBe(true);
     expect(out.txHash).toBe(TX);
     expect(urls).toEqual([
@@ -148,7 +154,7 @@ describe('CDP facilitator', () => {
         return new Response(JSON.stringify({ isValid: false, invalidReason: 'bad sig' }), { status: 200 });
       },
     });
-    const out = await rail.settle(paidHeader(), expectedPing());
+    const out = await rail.settle(paidHeader(), expectedShop());
     expect(out.ok).toBe(false);
     expect(out.error).toMatch(/bad sig/);
     expect(urls).toEqual(['https://api.cdp.coinbase.com/platform/v2/x402/verify']);
@@ -160,12 +166,13 @@ describe('CDP facilitator', () => {
     try {
       expect(hasCdpKeys()).toBe(false);
       const memory = new MemoryFacilitator();
-      expect(pingFacilitator(memory, fetch)).toBe(memory);
+      expect(pingFacilitator(memory, fetch, true)).toBe(memory);
       const { id, secret } = ed25519Secret();
       process.env.CDP_API_KEY_ID = id;
       process.env.CDP_API_KEY_SECRET = secret;
       expect(hasCdpKeys()).toBe(true);
-      expect(pingFacilitator(memory, fetch)).toBeInstanceOf(CdpFacilitator);
+      expect(pingFacilitator(memory, fetch, false)).toBe(memory);
+      expect(pingFacilitator(memory, fetch, true)).toBeInstanceOf(CdpFacilitator);
     } finally {
       if (prevId === undefined) delete process.env.CDP_API_KEY_ID;
       else process.env.CDP_API_KEY_ID = prevId;

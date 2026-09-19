@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createContext } from '../mcp/src/context.js';
 import { handleHangar } from '../mcp/src/http.js';
+import { MemoryListedBoard } from '../mcp/src/listed.js';
 
 const PAY = '0xc9cD4E19e8fFabFC479352680295ba12e454462D' as const;
 
@@ -26,14 +27,28 @@ describe('GET /v1/listings', () => {
     expect(body.bazaar.indexed).toBe(false);
   });
 
-  it('bazaar indexed when CDP search returns ping shop', async () => {
+  it('bazaar indexed when CDP search returns the hangar shop URL', async () => {
+    const listed = new MemoryListedBoard([
+      {
+        agentId: 91094,
+        paymentId: 'list-1',
+        pinnedAt: new Date().toISOString(),
+        groover: 'did:groover:test',
+        solar: 'PASS',
+        storeUrl: 'https://clearing.rippel.ai/v1/skim',
+        mcpUrl: 'https://clearing.rippel.ai/mcp',
+        healthAt: new Date().toISOString(),
+        liveAt: new Date().toISOString(),
+      },
+    ]);
     const ctx = createContext({
       config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: PAY },
+      listed,
       fetch: async (input) => {
         const u = String(input);
         if (u.includes('discovery/search')) {
           return new Response(
-            JSON.stringify({ resources: [{ resource: 'https://clearing.rippel.ai/v1/ping' }] }),
+            JSON.stringify({ resources: [{ resource: 'https://clearing.rippel.ai/v1/skim' }] }),
           );
         }
         if (u.includes('eth_') || u.includes('base.org')) {
@@ -47,6 +62,6 @@ describe('GET /v1/listings', () => {
     const res = await handleHangar(new Request('https://clearing.rippel.ai/v1/listings?agentId=91094'), ctx);
     const body = (await res.json()) as { bazaar: { indexed: boolean; url?: string } };
     expect(body.bazaar.indexed).toBe(true);
-    expect(body.bazaar.url).toBe('https://clearing.rippel.ai/v1/ping');
+    expect(body.bazaar.url).toBe('https://clearing.rippel.ai/v1/skim');
   });
 });

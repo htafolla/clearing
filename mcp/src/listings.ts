@@ -2,6 +2,7 @@
  * Unpaid listings check. Four hangar directories + CDP Bazaar probe.
  */
 import { CDP_SEARCH_URL } from './cdp-auth.js';
+import { bazaarResourceUrl } from './facilitator.js';
 import { IDENTITY_REGISTRY, type FetchFn } from './types.js';
 import { advertisedOrigin, RIPPEL_CLEARING } from './origin.js';
 import { buildCatalog } from './listed.js';
@@ -74,7 +75,10 @@ export async function handleListings(req: Request, ctx: ClearingContext): Promis
     out.a2a = { ok: false, error: 'no host' };
   }
 
-  out.bazaar = await probeCdpBazaar(`${origin}/v1/ping`, ctx.fetch);
+  const shopListed = shopUrl ? bazaarResourceUrl(shopUrl) : undefined;
+  out.bazaar = shopListed
+    ? await probeCdpBazaar(shopListed, ctx.fetch)
+    : { ok: false, indexed: false, note: 'no x402 shop URL to list in Bazaar' };
 
   return json(out, 200);
 }
@@ -94,14 +98,16 @@ export async function probeCdpBazaar(
     }
     const body = (await res.json()) as { resources?: unknown[] };
     const resources = Array.isArray(body.resources) ? body.resources : [];
-    const hit = resources
-      .map(resourceUrlOf)
-      .find((u) => u.includes('clearing.rippel.ai/v1/ping'));
-    if (hit) return { ok: true, indexed: true, url: hit, note: 'CDP Bazaar indexed /v1/ping' };
+    const want = bazaarResourceUrl(shopUrl) ?? shopUrl;
+    const hit = resources.map(resourceUrlOf).find((u) => {
+      const listed = bazaarResourceUrl(u) ?? u;
+      return listed === want || u.includes(want);
+    });
+    if (hit) return { ok: true, indexed: true, url: hit, note: `CDP Bazaar indexed ${want}` };
     return {
       ok: false,
       indexed: false,
-      note: 'not in CDP Bazaar until ping settles through Coinbase (not ZigZag). Same nonce once.',
+      note: 'not in CDP Bazaar until ping settles this shop URL through Coinbase (not /v1/ping).',
     };
   } catch {
     return { ok: false, indexed: false, note: 'CDP Bazaar probe failed' };

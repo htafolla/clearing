@@ -8,7 +8,7 @@ import {
   cdpBearerJwt,
   hasCdpKeys,
 } from './cdp-auth.js';
-import { decodePayload, requirementsMatch } from './x402.js';
+import { decodePayload, httpGetBazaar, requirementsMatch } from './x402.js';
 import { USDC_EIP712_NAME, USDC_EIP712_VERSION } from './types.js';
 import type { Eip3009Auth, FetchFn, HexAddress, PaymentRequirements, PayloadBody } from './types.js';
 
@@ -97,21 +97,30 @@ export type CdpSettleBody = {
       };
     };
     resource: { url: string; description: string; mimeType: string };
+    extensions: { bazaar: ReturnType<typeof httpGetBazaar> };
   };
   paymentRequirements: CdpV2Accepted;
 };
 
-/** Catalog `/v1/ping` without query so one penny indexes one shop. */
-export function cdpCatalogResource(expected: PaymentRequirements): string {
+/**
+ * Bazaar lists the x402 shop (origin + path). Never `/v1/ping`, never railway.app.
+ * Query strings are stripped so skim?url= does not mint a row per target.
+ */
+export function bazaarResourceUrl(shopUrl: string): string | undefined {
   try {
-    const u = new URL(expected.resource);
-    if (u.pathname === '/v1/ping' || u.pathname.startsWith('/v1/ping/')) {
-      return `${u.origin}/v1/ping`;
-    }
-    return `${u.origin}${u.pathname}`;
+    const u = new URL(shopUrl);
+    if (u.protocol !== 'https:') return undefined;
+    if (u.hostname.includes('railway.app')) return undefined;
+    const path = u.pathname.replace(/\/+$/, '') || '/';
+    if (path === '/v1/ping' || path.startsWith('/v1/ping/')) return undefined;
+    return `${u.origin}${path === '/' ? '/' : path}`;
   } catch {
-    return expected.resource;
+    return undefined;
   }
+}
+
+export function cdpCatalogResource(expected: PaymentRequirements): string {
+  return bazaarResourceUrl(expected.resource) ?? '';
 }
 
 export function toCdpSettleBody(body: PayloadBody, expected: PaymentRequirements): CdpSettleBody | { error: string } {
@@ -129,6 +138,8 @@ export function toCdpSettleBody(body: PayloadBody, expected: PaymentRequirements
   } catch {
     return { error: 'cdp settle needs checksum EVM addresses' };
   }
+  const catalog = cdpCatalogResource(expected);
+  if (!catalog) return { error: 'bazaar resource must be an x402 shop URL, not /v1/ping' };
   const accepted: CdpV2Accepted = {
     scheme: 'exact',
     network: 'eip155:8453',
@@ -155,9 +166,18 @@ export function toCdpSettleBody(body: PayloadBody, expected: PaymentRequirements
         },
       },
       resource: {
-        url: cdpCatalogResource(expected),
-        description: expected.description,
+        url: catalog,
+        description: expected.description.slice(0, 500),
         mimeType: expected.mimeType,
+      },
+      extensions: {
+        bazaar: httpGetBazaar({
+          queryParams: {},
+          querySchema: {},
+          requiredQuery: [],
+          outputExample: { live: true, status: 402 },
+          tags: ['hangar'],
+        }),
       },
     },
     paymentRequirements: accepted,
@@ -266,9 +286,13 @@ export class CdpFacilitator implements Facilitator {
   }
 }
 
-/** Ping soaks Bazaar through CDP when keys exist. Never ZigZag-settle the same nonce. */
-export function pingFacilitator(fallback: Facilitator, fetchFn: FetchFn): Facilitator {
-  if (!hasCdpKeys()) return fallback;
+/** CDP only when the target is a 402 shop to index. Never ZigZag-settle that nonce. */
+export function pingFacilitator(
+  fallback: Facilitator,
+  fetchFn: FetchFn,
+  indexShop = false,
+): Facilitator {
+  if (!indexShop || !hasCdpKeys()) return fallback;
   return new CdpFacilitator({ fetchFn });
 }
 
