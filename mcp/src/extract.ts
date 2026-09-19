@@ -350,6 +350,12 @@ function openapiDoc(reqUrl: URL): Record<string, unknown> {
       '/v1/card': {
         post: paid('Gasless ERC-8004 register; hangar pays ETH', '0.050000'),
       },
+      '/v1/ping': {
+        get: {
+          summary: 'Unpaid find/ping. live = HTTP 402',
+          parameters: [{ name: 'url', in: 'query', required: false, schema: { type: 'string' } }],
+        },
+      },
       '/v1/blip': {
         get: {
           ...paid('4.44s mill + Base NFT', '0.050000'),
