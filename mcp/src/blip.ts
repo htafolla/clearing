@@ -24,6 +24,8 @@ import {
   hangarMediaUrl,
   hangarPosterUrl,
   isHangarTapeUrl,
+  publicHangarBase,
+  publicizeHangarUrl,
   parseMediaMintIndex,
   parsePosterMintIndex,
   posterSvg,
@@ -228,7 +230,7 @@ async function fulfillPaidBlip(args: {
       videoUrl: plant.videoUrl,
       dataDir: ctx.config.dataDir,
       mintIndex: liveIndex,
-      publicBase: ctx.config.extractBaseUrl,
+      publicBase: hangarPublic(ctx),
       fetchFn: ctx.fetch,
       nft: ctx.config.blipsNft,
     });
@@ -252,7 +254,8 @@ async function fulfillPaidBlip(args: {
     return json({ error: settle.error ?? 'payment not settled', paid: false, charged: false }, 402);
   }
 
-  let tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${liveIndex}`;
+  const publicBase = hangarPublic(ctx);
+  let tokenURI = `${publicBase}/v1/blip/metadata/${liveIndex}`;
   let minted;
   try {
     minted = await ctx.blipsMinter.mint({
@@ -276,8 +279,8 @@ async function fulfillPaidBlip(args: {
 
   if (minted.tokenId !== liveIndex) {
     copyBlipMedia(ctx.config.dataDir, liveIndex, minted.tokenId, ctx.config.blipsNft);
-    tokenURI = `${ctx.config.extractBaseUrl.replace(/\/$/, '')}/v1/blip/metadata/${minted.tokenId}`;
-    videoUrl = hangarMediaUrl(ctx.config.extractBaseUrl, minted.tokenId);
+    tokenURI = `${publicBase}/v1/blip/metadata/${minted.tokenId}`;
+    videoUrl = hangarMediaUrl(publicBase, minted.tokenId);
   }
 
   ctx.blips.add({
@@ -291,10 +294,11 @@ async function fulfillPaidBlip(args: {
     picture: picture.picture,
     brief: input.brief,
     videoUrl,
-    imageUrl: plant.imageUrl || hangarPosterUrl(ctx.config.extractBaseUrl, minted.tokenId),
+    imageUrl: hangarPosterUrl(publicBase, minted.tokenId),
     audioUrl: plant.audioUrl,
     durationSec: plant.durationSec || BLIP_DURATION_SEC,
     plantVersion: plant.plantVersion || BLIP_PLANT_VERSION,
+    mill: plant.mill,
     tokenURI,
     settledAt: ctx.now().toISOString(),
   });
@@ -575,7 +579,7 @@ async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
   const brief =
     String(body.brief || '').trim() ||
     'Cyan arc over a gold nameplate. Factory floor at shift change.';
-  const base = ctx.config.extractBaseUrl.replace(/\/$/, '');
+  const base = hangarPublic(ctx);
   let videoUrl: string | undefined;
   const existing = readBlipMedia(ctx.config.dataDir, tokenId, ctx.config.blipsNft);
   if (existing && !body.force) {
@@ -628,7 +632,7 @@ async function migrate(req: Request, ctx: ClearingContext): Promise<Response> {
 }
 
 function collection(ctx: ClearingContext): Response {
-  const base = ctx.config.extractBaseUrl.replace(/\/$/, '');
+  const base = hangarPublic(ctx);
   return json({
     name: 'Blips',
     symbol: 'BLIP',
@@ -675,6 +679,22 @@ function media(url: URL, req: Request, ctx: ClearingContext): Response {
   return mediaFileResponse(buf, req.headers.get('range'));
 }
 
+function hangarPublic(ctx: ClearingContext): string {
+  return publicHangarBase(ctx.config.extractBaseUrl, ctx.config.publicUrl);
+}
+
+function motionTrait(picture: string): string {
+  if (picture === 'still' || picture === 'motion:still') return 'still';
+  if (picture.startsWith('motion:')) return picture.slice('motion:'.length);
+  return picture;
+}
+
+function trait(type: string, value: unknown, display?: 'number' | 'string'): { trait_type: string; value: unknown; display_type?: string } {
+  const row: { trait_type: string; value: unknown; display_type?: string } = { trait_type: type, value };
+  if (display) row.display_type = display;
+  return row;
+}
+
 async function metadata(url: URL, ctx: ClearingContext): Promise<Response> {
   const idRaw = url.pathname.split('/').pop() ?? '';
   const tokenId = Number.parseInt(idRaw, 10);
@@ -683,30 +703,47 @@ async function metadata(url: URL, ctx: ClearingContext): Promise<Response> {
   const minted = await ctx.blipsMinter.get(tokenId);
   if (!receipt && !minted) return json({ error: 'unknown token' }, 404);
   const picture = receipt?.picture ?? 'still';
-  const media = receipt?.videoUrl ?? receipt?.imageUrl;
-  const base = ctx.config.extractBaseUrl.replace(/\/$/, '');
-  const poster = receipt?.imageUrl || hangarPosterUrl(base, tokenId);
+  const brief = receipt?.brief?.trim() || '';
+  const publicBase = hangarPublic(ctx);
+  const media = publicizeHangarUrl(receipt?.videoUrl, publicBase) ?? hangarMediaUrl(publicBase, tokenId);
+  const poster =
+    publicizeHangarUrl(receipt?.imageUrl, publicBase) || hangarPosterUrl(publicBase, tokenId);
+  const mill = receipt?.mill;
+  const attributes = [
+    trait('picture', picture),
+    trait('motion', motionTrait(picture)),
+    ...(brief ? [trait('brief', brief)] : []),
+    trait('mintIndex', receipt?.mintIndex ?? tokenId, 'number'),
+    trait('priceCents', receipt?.priceCents ?? blipPriceCents(tokenId), 'number'),
+    trait('durationSec', receipt?.durationSec ?? BLIP_DURATION_SEC, 'number'),
+    trait('mill', receipt?.plantVersion ?? BLIP_PLANT_VERSION),
+    trait('escalator', BLIPS_ESCALATOR_KIND),
+    ...(mill?.engine ? [trait('engine', mill.engine)] : []),
+    ...(mill?.look ? [trait('look', mill.look)] : []),
+    ...(mill?.organ ? [trait('organ', mill.organ)] : []),
+    ...(mill?.genre ? [trait('genre', mill.genre)] : []),
+    ...(mill?.seed ? [trait('seed', mill.seed)] : []),
+    ...(mill?.scenePair ? [trait('scene', mill.scenePair)] : []),
+    ...(mill?.sceneHex ? [trait('jewel', mill.sceneHex)] : []),
+    ...(mill?.stillPlate ? [trait('plate', mill.stillPlate)] : []),
+  ];
+  const descBits = ['4.44s shortie that blips', picture, brief].filter(Boolean);
   return json({
     name: `Blip #${tokenId}`,
-    description: `4.44s shortie that blips · ${picture}`,
-    animation_url: receipt?.videoUrl,
+    description: descBits.join(' · '),
+    animation_url: media,
     image: poster,
-    audio: receipt?.audioUrl,
-    external_url: minted?.tokenURI ?? receipt?.tokenURI,
-    attributes: [
-      { trait_type: 'picture', value: picture },
-      { trait_type: 'mintIndex', value: receipt?.mintIndex ?? tokenId },
-      { trait_type: 'priceCents', value: receipt?.priceCents ?? blipPriceCents(tokenId) },
-      { trait_type: 'durationSec', value: receipt?.durationSec ?? BLIP_DURATION_SEC },
-      { trait_type: 'plantVersion', value: receipt?.plantVersion ?? BLIP_PLANT_VERSION },
-      { trait_type: 'escalator', value: BLIPS_ESCALATOR_KIND },
-    ],
+    audio: publicizeHangarUrl(receipt?.audioUrl, publicBase) ?? media,
+    external_url: `${publicBase}/v1/blip/metadata/${tokenId}`,
+    attributes,
+    mill: mill ?? null,
     receipt: {
       ownerWallet: receipt?.ownerWallet ?? minted?.ownerWallet,
       mintTx: receipt?.mintTx ?? minted?.mintTx,
       payTx: receipt?.payTx,
-      brief: receipt?.brief,
+      brief,
       media,
+      mill,
     },
   });
 }

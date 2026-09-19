@@ -5,6 +5,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { HexAddress } from './types.js';
+import type { BlipMillCard } from './blips-plant.js';
 
 export type BlipMintRow = {
   mintIndex: number;
@@ -21,6 +22,7 @@ export type BlipMintRow = {
   audioUrl?: string;
   durationSec: number;
   plantVersion: string;
+  mill?: BlipMillCard;
   tokenURI: string;
   settledAt: string;
 };

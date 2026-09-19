@@ -10,10 +10,31 @@ import {
   isHangarTapeUrl,
   mediaFileResponse,
   parseMediaMintIndex,
+  publicHangarBase,
+  publicizeHangarUrl,
   readBlipMedia,
 } from '../mcp/src/blips-media.js';
 
 describe('durable blip media', () => {
+  it('public hangar origin never uses Railway', () => {
+    expect(publicHangarBase('https://clearing-production-9968.up.railway.app')).toBe(
+      'https://clearing.rippel.ai',
+    );
+    expect(
+      publicHangarBase(
+        'https://clearing-production-9968.up.railway.app',
+        'https://clearing-production-9968.up.railway.app',
+      ),
+    ).toBe('https://clearing.rippel.ai');
+    expect(publicHangarBase('https://api.clearing.dev')).toBe('https://api.clearing.dev');
+    expect(
+      publicizeHangarUrl(
+        'https://clearing-production-9968.up.railway.app/v1/blip/media/17.mp4',
+        'https://clearing.rippel.ai',
+      ),
+    ).toBe('https://clearing.rippel.ai/v1/blip/media/17.mp4');
+  });
+
   it('isHangarTapeUrl only matches hangar media', () => {
     expect(isHangarTapeUrl('https://clearing.rippel.ai/v1/blip/media/0.mp4')).toBe(true);
     expect(isHangarTapeUrl('https://blip-plant-production.up.railway.app/artifacts/x.mp4')).toBe(false);

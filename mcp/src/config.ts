@@ -95,6 +95,10 @@ export function defaultConfig(overrides: Partial<ClearingConfig> = {}): Clearing
     extractPriceUsd: overrides.extractPriceUsd ?? envNumber('CLEARING_EXTRACT_PRICE_USD', 0.02),
     extractPriceJsUsd: overrides.extractPriceJsUsd ?? envNumber('CLEARING_EXTRACT_PRICE_JS_USD', 0.05),
     extractBaseUrl: extractBaseUrl.replace(/\/$/, ''),
+    publicUrl: (overrides.publicUrl ?? env('CLEARING_PUBLIC_URL') ?? env('RAILWAY_PUBLIC_DOMAIN'))?.replace(
+      /\/$/,
+      '',
+    ),
     extractPort: overrides.extractPort ?? envNumber('CLEARING_EXTRACT_PORT', 8787),
     discoverMinSettlements7d: overrides.discoverMinSettlements7d ?? envNumber('CLEARING_DISCOVER_MIN_SETTLEMENTS_7D', 1),
     probeTimeoutMs: overrides.probeTimeoutMs ?? envNumber('CLEARING_PROBE_TIMEOUT_MS', 4000),

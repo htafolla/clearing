@@ -10,6 +10,44 @@ import type { FetchFn } from './types.js';
 import { collectionTag } from './blips-store.js';
 
 const MIN_BYTES = 256;
+/** Public hangar origin for tokenURI / animation_url. Never `*.up.railway.app`. */
+export const HANGAR_PUBLIC_ORIGIN = 'https://clearing.rippel.ai';
+
+export function publicHangarBase(extractBaseUrl: string, publicUrl?: string): string {
+  const candidates = [publicUrl, extractBaseUrl, HANGAR_PUBLIC_ORIGIN];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const trimmed = String(raw).trim().replace(/\/$/, '');
+    if (!trimmed) continue;
+    const href = trimmed.includes('://') ? trimmed : `https://${trimmed}`;
+    try {
+      const host = new URL(href).hostname.toLowerCase();
+      if (host.endsWith('.up.railway.app')) continue;
+      if (host.endsWith('.railway.internal')) continue;
+      if (host === 'localhost' || host.endsWith('.local')) continue;
+      return href.replace(/\/$/, '');
+    } catch {
+      continue;
+    }
+  }
+  return HANGAR_PUBLIC_ORIGIN;
+}
+
+export function publicizeHangarUrl(
+  url: string | undefined,
+  publicBase: string,
+): string | undefined {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith('.up.railway.app') && u.pathname.startsWith('/v1/blip/')) {
+      return `${publicBase.replace(/\/$/, '')}${u.pathname}`;
+    }
+  } catch {
+    /* keep */
+  }
+  return url;
+}
 
 export function blipsMediaDir(dataDir: string, nft?: string): string {
   return join(dataDir, `blips-media-${collectionTag(nft)}`);
