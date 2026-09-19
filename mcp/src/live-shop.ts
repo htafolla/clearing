@@ -69,9 +69,9 @@ export async function findLiveShop(card: unknown, ctx: LiveShopCtx): Promise<Liv
       break;
     }
   }
-  for (const url of store.slice(0, 3)) {
+  for (const url of store.slice(0, 8)) {
     if (url === mcpUrl) continue;
-    if (await probeLiveHttps(url, ctx)) {
+    if (await probeX402Shop(url, ctx)) {
       storeUrl = url;
       break;
     }
@@ -81,17 +81,25 @@ export async function findLiveShop(card: unknown, ctx: LiveShopCtx): Promise<Liv
 }
 
 export async function probeLiveHttps(raw: string, ctx: LiveShopCtx): Promise<boolean> {
+  const hit = await fetchHttps(raw, ctx);
+  return hit ? isLiveShopResponse(hit.res, hit.body) : false;
+}
+
+async function fetchHttps(
+  raw: string,
+  ctx: LiveShopCtx,
+): Promise<{ res: Response; body: string } | undefined> {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    return false;
+    return undefined;
   }
-  if (url.protocol !== 'https:') return false;
+  if (url.protocol !== 'https:') return undefined;
   try {
     await assertPublicExtractTarget(url.toString(), ctx.resolveHost);
   } catch {
-    return false;
+    return undefined;
   }
   try {
     const res = await ctx.fetch(url.toString(), {
@@ -100,16 +108,25 @@ export async function probeLiveHttps(raw: string, ctx: LiveShopCtx): Promise<boo
       signal: AbortSignal.timeout(ctx.config.probeTimeoutMs),
     });
     const body = await res.text();
-    return isLiveShopResponse(res, body);
+    return { res, body };
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-export function isLiveShopResponse(res: Response, body: string): boolean {
+export async function probeX402Shop(raw: string, ctx: LiveShopCtx): Promise<boolean> {
+  const hit = await fetchHttps(raw, ctx);
+  return hit ? isX402ShopResponse(hit.res) : false;
+}
+
+export function isX402ShopResponse(res: Response): boolean {
   if (res.status === 402) return true;
   const auth = res.headers.get('www-authenticate') ?? '';
-  if (res.headers.get('payment-required') || /x402/i.test(auth)) return true;
+  return Boolean(res.headers.get('payment-required') || /x402/i.test(auth));
+}
+
+export function isLiveShopResponse(res: Response, body: string): boolean {
+  if (isX402ShopResponse(res)) return true;
   if (res.status < 200 || res.status >= 400) return false;
   try {
     const json = JSON.parse(body) as Record<string, unknown>;

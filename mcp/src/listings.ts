@@ -38,26 +38,27 @@ export async function handleListings(req: Request, ctx: ClearingContext): Promis
     ? { ok: true, shops: hangar.shops }
     : { ok: false, catalog: `${origin}/v1/catalog` };
 
-  const shopUrl =
-    hangar?.shops?.[0]?.url ||
-    (typeof (out.erc8004 as { tokenURI?: string })?.tokenURI === 'string'
+  const tokenURI =
+    typeof (out.erc8004 as { tokenURI?: string })?.tokenURI === 'string'
       ? (out.erc8004 as { tokenURI: string }).tokenURI
-      : '');
-  if (shopUrl.startsWith('https://') && !shopUrl.includes('railway.app')) {
-    try {
-      const res = await ctx.fetch(shopUrl, {
-        method: 'GET',
-        redirect: 'manual',
-        signal: AbortSignal.timeout(4000),
-        headers: { 'User-Agent': 'ClearingListings/0.1' },
-      });
-      out.ping = { ok: res.status === 402, status: res.status, url: shopUrl };
-    } catch {
-      out.ping = { ok: false, status: 0, url: shopUrl };
-    }
-    const a2a = shopUrl.includes('/v1/')
-      ? `${new URL(shopUrl).origin}/.well-known/agent-card.json`
-      : shopUrl;
+      : '';
+  const pingShop = await resolveX402Shop(
+    [
+      ...(hangar?.shops ?? []).map((s) => s.url),
+      hangar?.storeUrl,
+      ...(await shopsFromCard(tokenURI, ctx.fetch)),
+    ],
+    ctx.fetch,
+  );
+  if (pingShop.url) {
+    out.ping = { ok: pingShop.status === 402, status: pingShop.status, url: pingShop.url };
+  } else {
+    out.ping = { ok: false, error: 'no https 402 shop URL' };
+  }
+
+  const a2aHost = hangar?.storeUrl || pingShop.url || '';
+  if (a2aHost.startsWith('https://') && !a2aHost.includes('railway.app')) {
+    const a2a = `${new URL(a2aHost).origin}/.well-known/agent-card.json`;
     try {
       const res = await ctx.fetch(a2a, {
         method: 'GET',
@@ -71,11 +72,10 @@ export async function handleListings(req: Request, ctx: ClearingContext): Promis
       out.a2a = { ok: false, url: a2a };
     }
   } else {
-    out.ping = { ok: false, error: 'no https shop URL' };
     out.a2a = { ok: false, error: 'no host' };
   }
 
-  const shopListed = shopUrl ? bazaarResourceUrl(shopUrl) : undefined;
+  const shopListed = pingShop.url ? bazaarResourceUrl(pingShop.url) : undefined;
   out.bazaar = shopListed
     ? await probeCdpBazaar(shopListed, ctx.fetch)
     : { ok: false, indexed: false, note: 'no x402 shop URL to list in Bazaar' };
@@ -111,6 +111,55 @@ export async function probeCdpBazaar(
     };
   } catch {
     return { ok: false, indexed: false, note: 'CDP Bazaar probe failed' };
+  }
+}
+
+async function resolveX402Shop(
+  candidates: Array<string | undefined>,
+  fetchFn: FetchFn,
+): Promise<{ url?: string; status?: number }> {
+  const seen = new Set<string>();
+  for (const raw of candidates) {
+    if (!raw || !raw.startsWith('https://') || raw.includes('railway.app')) continue;
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    if (seen.size > 8) break;
+    try {
+      const res = await fetchFn(raw, {
+        method: 'GET',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(4000),
+        headers: { 'User-Agent': 'ClearingListings/0.1' },
+      });
+      if (res.status === 402) return { url: raw, status: 402 };
+    } catch {
+      /* next candidate */
+    }
+  }
+  return {};
+}
+
+async function shopsFromCard(tokenURI: string, fetchFn: FetchFn): Promise<string[]> {
+  if (!tokenURI.startsWith('https://') || tokenURI.includes('railway.app')) return [];
+  try {
+    const res = await fetchFn(tokenURI, {
+      method: 'GET',
+      signal: AbortSignal.timeout(4000),
+      headers: { 'User-Agent': 'ClearingListings/0.1' },
+    });
+    if (!res.ok) return [];
+    const card = (await res.json()) as {
+      endpoints?: { http?: unknown };
+      services?: Array<{ name?: unknown; endpoint?: unknown }>;
+    };
+    const out: string[] = [];
+    if (typeof card.endpoints?.http === 'string') out.push(card.endpoints.http);
+    for (const svc of card.services ?? []) {
+      if (typeof svc.endpoint === 'string' && svc.endpoint.startsWith('https://')) out.push(svc.endpoint);
+    }
+    return out;
+  } catch {
+    return [];
   }
 }
 
