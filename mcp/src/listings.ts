@@ -1,7 +1,8 @@
 /**
  * Unpaid listings check. Four hangar directories + CDP Bazaar probe.
  */
-import { IDENTITY_REGISTRY } from './types.js';
+import { CDP_SEARCH_URL } from './cdp-auth.js';
+import { IDENTITY_REGISTRY, type FetchFn } from './types.js';
 import { advertisedOrigin, RIPPEL_CLEARING } from './origin.js';
 import { buildCatalog } from './listed.js';
 import { ownerOf, tokenUri } from './pin.js';
@@ -73,13 +74,48 @@ export async function handleListings(req: Request, ctx: ClearingContext): Promis
     out.a2a = { ok: false, error: 'no host' };
   }
 
-  out.bazaar = {
-    ok: false,
-    indexed: false,
-    note: 'CDP Bazaar needs one settle through Coinbase facilitator (not ZigZag). Set CDP_API_KEY_ID + SECRET, then soak skim $0.01 from OWS. Do not double-settle the same nonce.',
-  };
+  out.bazaar = await probeCdpBazaar(`${origin}/v1/ping`, ctx.fetch);
 
   return json(out, 200);
+}
+
+export async function probeCdpBazaar(
+  shopUrl: string,
+  fetchFn: FetchFn,
+): Promise<{ ok: boolean; indexed: boolean; note: string; url?: string }> {
+  try {
+    const res = await fetchFn(`${CDP_SEARCH_URL}?query=${encodeURIComponent(shopUrl)}&limit=20`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(4000),
+      headers: { 'User-Agent': 'ClearingListings/0.1' },
+    });
+    if (!res.ok) {
+      return { ok: false, indexed: false, note: `CDP Bazaar search ${res.status}` };
+    }
+    const body = (await res.json()) as { resources?: unknown[] };
+    const resources = Array.isArray(body.resources) ? body.resources : [];
+    const hit = resources
+      .map(resourceUrlOf)
+      .find((u) => u.includes('clearing.rippel.ai/v1/ping'));
+    if (hit) return { ok: true, indexed: true, url: hit, note: 'CDP Bazaar indexed /v1/ping' };
+    return {
+      ok: false,
+      indexed: false,
+      note: 'not in CDP Bazaar until ping settles through Coinbase (not ZigZag). Same nonce once.',
+    };
+  } catch {
+    return { ok: false, indexed: false, note: 'CDP Bazaar probe failed' };
+  }
+}
+
+function resourceUrlOf(row: unknown): string {
+  if (!row || typeof row !== 'object') return '';
+  const resource = (row as { resource?: unknown }).resource;
+  if (typeof resource === 'string') return resource;
+  if (resource && typeof resource === 'object' && typeof (resource as { url?: unknown }).url === 'string') {
+    return (resource as { url: string }).url;
+  }
+  return '';
 }
 
 function json(body: unknown, status: number): Response {

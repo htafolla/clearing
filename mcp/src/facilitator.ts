@@ -1,7 +1,16 @@
+import { getAddress } from 'viem';
 import { sha256Hex } from './bytes.js';
 import { fail } from './errors.js';
+import {
+  CDP_SETTLE_PATH,
+  CDP_VERIFY_PATH,
+  CDP_X402_HOST,
+  cdpBearerJwt,
+  hasCdpKeys,
+} from './cdp-auth.js';
 import { decodePayload, requirementsMatch } from './x402.js';
-import type { Eip3009Auth, HexAddress, PaymentRequirements } from './types.js';
+import { USDC_EIP712_NAME, USDC_EIP712_VERSION } from './types.js';
+import type { Eip3009Auth, FetchFn, HexAddress, PaymentRequirements, PayloadBody } from './types.js';
 
 export type SettleResult = {
   ok: boolean;
@@ -61,6 +70,208 @@ export class MissingFacilitator implements Facilitator {
   }
 }
 
+export type CdpV2Accepted = {
+  scheme: 'exact';
+  network: 'eip155:8453';
+  asset: string;
+  amount: string;
+  payTo: string;
+  maxTimeoutSeconds: number;
+  extra: { name: typeof USDC_EIP712_NAME; version: typeof USDC_EIP712_VERSION };
+};
+
+export type CdpSettleBody = {
+  x402Version: 2;
+  paymentPayload: {
+    x402Version: 2;
+    accepted: CdpV2Accepted;
+    payload: {
+      signature: string;
+      authorization: {
+        from: string;
+        to: string;
+        value: string;
+        validAfter: string;
+        validBefore: string;
+        nonce: string;
+      };
+    };
+    resource: { url: string; description: string; mimeType: string };
+  };
+  paymentRequirements: CdpV2Accepted;
+};
+
+/** Catalog `/v1/ping` without query so one penny indexes one shop. */
+export function cdpCatalogResource(expected: PaymentRequirements): string {
+  try {
+    const u = new URL(expected.resource);
+    if (u.pathname === '/v1/ping' || u.pathname.startsWith('/v1/ping/')) {
+      return `${u.origin}/v1/ping`;
+    }
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return expected.resource;
+  }
+}
+
+export function toCdpSettleBody(body: PayloadBody, expected: PaymentRequirements): CdpSettleBody | { error: string } {
+  if (!body.eip3009) return { error: 'missing eip3009 authorization' };
+  const auth = body.eip3009;
+  let from: string;
+  let to: string;
+  let payTo: string;
+  let asset: string;
+  try {
+    from = getAddress(auth.from);
+    to = getAddress(auth.to);
+    payTo = getAddress(expected.payTo);
+    asset = getAddress(expected.asset);
+  } catch {
+    return { error: 'cdp settle needs checksum EVM addresses' };
+  }
+  const accepted: CdpV2Accepted = {
+    scheme: 'exact',
+    network: 'eip155:8453',
+    asset,
+    amount: expected.maxAmountRequired,
+    payTo,
+    maxTimeoutSeconds: expected.maxTimeoutSeconds,
+    extra: { name: USDC_EIP712_NAME, version: USDC_EIP712_VERSION },
+  };
+  return {
+    x402Version: 2,
+    paymentPayload: {
+      x402Version: 2,
+      accepted,
+      payload: {
+        signature: auth.signature,
+        authorization: {
+          from,
+          to,
+          value: auth.value,
+          validAfter: auth.validAfter,
+          validBefore: auth.validBefore,
+          nonce: auth.nonce,
+        },
+      },
+      resource: {
+        url: cdpCatalogResource(expected),
+        description: expected.description,
+        mimeType: expected.mimeType,
+      },
+    },
+    paymentRequirements: accepted,
+  };
+}
+
+export class CdpFacilitator implements Facilitator {
+  constructor(
+    private readonly opts: {
+      apiKeyId?: string;
+      apiKeySecret?: string;
+      fetchFn?: FetchFn;
+    } = {},
+  ) {}
+
+  async settle(payloadB64: string, expected: PaymentRequirements): Promise<SettleResult> {
+    const body = decodePayload(payloadB64);
+    if (!requirementsMatch(body, expected)) {
+      return { ok: false, replayed: false, error: 'payload does not match quote' };
+    }
+    const mapped = toCdpSettleBody(body, expected);
+    if ('error' in mapped) {
+      return { ok: false, replayed: false, error: mapped.error };
+    }
+    const verified = await this.cdpPost(CDP_VERIFY_PATH, mapped);
+    if (!verified.ok) return verified.settle;
+    const json = verified.json as { isValid?: boolean; valid?: boolean; invalidReason?: string };
+    if (json.isValid !== true && json.valid !== true) {
+      return {
+        ok: false,
+        replayed: false,
+        error: `cdp verify rejected: ${String(json.invalidReason ?? 'invalid').slice(0, 200)}`,
+      };
+    }
+    const settled = await this.cdpPost(CDP_SETTLE_PATH, mapped);
+    if (!settled.ok) return settled.settle;
+    const out = settled.json as {
+      success?: boolean;
+      transaction?: string;
+      errorReason?: string;
+      errorMessage?: string;
+    };
+    if (out.success === true && typeof out.transaction === 'string' && out.transaction.startsWith('0x')) {
+      return { ok: true, txHash: out.transaction as HexAddress, replayed: false };
+    }
+    return {
+      ok: false,
+      replayed: false,
+      error: `cdp settle failed: ${String(out.errorReason ?? out.errorMessage ?? 'no tx').slice(0, 200)}`,
+    };
+  }
+
+  debitCount(): number {
+    return 0;
+  }
+
+  private async cdpPost(
+    path: typeof CDP_VERIFY_PATH | typeof CDP_SETTLE_PATH,
+    body: CdpSettleBody,
+  ): Promise<{ ok: true; json: unknown } | { ok: false; settle: SettleResult }> {
+    const apiKeyId = (this.opts.apiKeyId ?? process.env.CDP_API_KEY_ID ?? '').trim();
+    const apiKeySecret = (this.opts.apiKeySecret ?? process.env.CDP_API_KEY_SECRET ?? '').trim();
+    if (!apiKeyId || !apiKeySecret) {
+      return { ok: false, settle: { ok: false, replayed: false, error: 'cdp keys missing' } };
+    }
+    let jwt: string;
+    try {
+      jwt = cdpBearerJwt({
+        apiKeyId,
+        apiKeySecret,
+        method: 'POST',
+        host: CDP_X402_HOST,
+        path,
+      });
+    } catch {
+      return { ok: false, settle: { ok: false, replayed: false, error: 'cdp jwt failed' } };
+    }
+    const fetchFn = this.opts.fetchFn ?? fetch;
+    const label = path.endsWith('/verify') ? 'verify' : 'settle';
+    try {
+      const res = await fetchFn(`https://${CDP_X402_HOST}${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        return {
+          ok: false,
+          settle: { ok: false, replayed: false, error: `cdp ${label} ${res.status}: ${text.slice(0, 200)}` },
+        };
+      }
+      try {
+        return { ok: true, json: JSON.parse(text) as unknown };
+      } catch {
+        return { ok: false, settle: { ok: false, replayed: false, error: `cdp ${label} not json` } };
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'fetch failed';
+      return { ok: false, settle: { ok: false, replayed: false, error: `cdp ${label} ${msg.slice(0, 200)}` } };
+    }
+  }
+}
+
+/** Ping soaks Bazaar through CDP when keys exist. Never ZigZag-settle the same nonce. */
+export function pingFacilitator(fallback: Facilitator, fetchFn: FetchFn): Facilitator {
+  if (!hasCdpKeys()) return fallback;
+  return new CdpFacilitator({ fetchFn });
+}
+
 export class ZigzagFacilitator implements Facilitator {
   constructor(
     private readonly settleUrl: string,
@@ -113,6 +324,10 @@ export function createFacilitator(
       fail('facilitator_missing', 'CLEARING_ZIGZAG_URL required for zigzag facilitator', 503);
     }
     return new ZigzagFacilitator(settleUrl);
+  }
+  if (kind === 'cdp') {
+    if (!hasCdpKeys()) fail('facilitator_missing', 'CDP_API_KEY_ID and CDP_API_KEY_SECRET required', 503);
+    return new CdpFacilitator();
   }
   if (kind === 'memory') {
     if (!allowFake) fail('facilitator_missing', 'memory facilitator is disabled', 503);

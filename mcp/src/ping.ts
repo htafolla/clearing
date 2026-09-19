@@ -2,6 +2,8 @@
  * Paid ping $0.01. SYN on the target shop is still unpaid GET → 402.
  * Their penny is the yellow-pages soak when Clearing settles through CDP.
  */
+import { hasCdpKeys } from './cdp-auth.js';
+import { pingFacilitator } from './facilitator.js';
 import { advertisedOrigin, RIPPEL_CLEARING } from './origin.js';
 import { buildCatalog, catalogShopUrls } from './listed.js';
 import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders, type BazaarDiscovery } from './x402.js';
@@ -31,7 +33,7 @@ export async function handlePing(req: Request, ctx: ClearingContext): Promise<Re
       .slice(0, 24);
   }
 
-  const resource = url.toString();
+  const resource = pingShopUrl(url);
   const requirements = buildRequirements({
     amountUsd: PING_USD,
     payTo: ctx.config.payTo,
@@ -43,7 +45,8 @@ export async function handlePing(req: Request, ctx: ClearingContext): Promise<Re
   if (!paymentHeader) {
     return new Response(JSON.stringify(quote), { status: 402, headers: quoteHeaders(quote) });
   }
-  const settle = await ctx.facilitator.settle(paymentHeader, requirements);
+  const cdp = hasCdpKeys();
+  const settle = await pingFacilitator(ctx.facilitator, ctx.fetch).settle(paymentHeader, requirements);
   if (!settle.ok) {
     return json({ error: settle.error ?? 'payment not settled', paid: false }, 402);
   }
@@ -53,7 +56,6 @@ export async function handlePing(req: Request, ctx: ClearingContext): Promise<Re
     pings.push(await pingShop(target, ctx));
   }
   const origin = advertisedOrigin(url) || RIPPEL_CLEARING;
-  const cdp = Boolean(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET);
   return json({
     paid: true,
     catalog: `${origin}/v1/catalog`,
@@ -62,10 +64,15 @@ export async function handlePing(req: Request, ctx: ClearingContext): Promise<Re
     live: pings.filter((p) => p.live).length,
     n: pings.length,
     txHash: settle.txHash,
+    facilitator: cdp ? 'cdp' : 'zigzag',
     bazaar: cdp
-      ? 'this settle can index CDP Bazaar if facilitator is CDP'
+      ? 'CDP settle of /v1/ping — Bazaar indexes this shop (can lag hours)'
       : 'ZigZag settle — not in CDP Bazaar. Same penny lists there once CDP keys settle ping.',
   }, 200);
+}
+
+export function pingShopUrl(reqUrl: URL): string {
+  return `${advertisedOrigin(reqUrl) || RIPPEL_CLEARING}/v1/ping`;
 }
 
 async function pingShop(target: string, ctx: ClearingContext): Promise<PingRow> {

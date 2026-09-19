@@ -25,4 +25,28 @@ describe('GET /v1/listings', () => {
     expect(body.yellowPages).toBe('cdp-bazaar');
     expect(body.bazaar.indexed).toBe(false);
   });
+
+  it('bazaar indexed when CDP search returns ping shop', async () => {
+    const ctx = createContext({
+      config: { allowFake: true, signer: 'fake', facilitator: 'memory', payTo: PAY },
+      fetch: async (input) => {
+        const u = String(input);
+        if (u.includes('discovery/search')) {
+          return new Response(
+            JSON.stringify({ resources: [{ resource: 'https://clearing.rippel.ai/v1/ping' }] }),
+          );
+        }
+        if (u.includes('eth_') || u.includes('base.org')) {
+          return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { message: 'no chain' } }));
+        }
+        if (u.includes('agent-card')) return new Response('{"protocolVersion":"0.3.0"}', { status: 200 });
+        if (u.includes('/v1/')) return new Response('{}', { status: 402 });
+        return new Response('no', { status: 404 });
+      },
+    });
+    const res = await handleHangar(new Request('https://clearing.rippel.ai/v1/listings?agentId=91094'), ctx);
+    const body = (await res.json()) as { bazaar: { indexed: boolean; url?: string } };
+    expect(body.bazaar.indexed).toBe(true);
+    expect(body.bazaar.url).toBe('https://clearing.rippel.ai/v1/ping');
+  });
 });
