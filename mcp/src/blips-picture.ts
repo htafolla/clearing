@@ -1,9 +1,9 @@
 /**
- * Hangar picture modes — v0 seed + kapow opt match factory plant `blip` (xray 4.0.15 / d466f1a91).
- * Unknown id FAIL. kapow is a design opt (two-tier stamp), not a growth stub.
+ * Hangar picture modes — v0 seed + kapow/destination opts match factory plant `blip` (`@0xray/blip@0.1.2`).
+ * Unknown id FAIL. kapow is a design opt (two-tier stamp). destination is a scene-mixer opt.
  */
 export const BLIP_V0_IDS = ['still', 'orb', 'swirl', 'snap', 'waves', 'spark'] as const;
-export const BLIP_OPT_IDS = ['kapow'] as const;
+export const BLIP_OPT_IDS = ['kapow', 'destination'] as const;
 export const BLIP_LIVE_IDS = [...BLIP_V0_IDS, ...BLIP_OPT_IDS] as const;
 
 export type BlipPicture =
