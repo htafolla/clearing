@@ -223,7 +223,7 @@ export function shopsFromStoreUrl(storeUrl: string | undefined): CatalogShop[] {
 }
 
 /** House hangar (this Clearing origin) declares mill shops. Third parties keep storeUrl only. */
-export const HOUSE_SHOP_IDS = ['extract', 'witness', 'pin', 'blip', 'card', 'skim'] as const;
+export const HOUSE_SHOP_IDS = ['extract', 'witness', 'pin', 'blip', 'card', 'skim', 'ping'] as const;
 
 export function houseShops(origin: string): CatalogShop[] {
   const base = origin.replace(/\/$/, '');

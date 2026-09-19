@@ -464,6 +464,7 @@ describe('hangar listed board', () => {
       'blip',
       'card',
       'skim',
+      'ping',
     ]);
     expect(body.hangars[0]?.shops.map((s) => s.url)).toEqual([
       `${origin}/v1/extract`,
@@ -472,6 +473,7 @@ describe('hangar listed board', () => {
       `${origin}/v1/blip`,
       `${origin}/v1/card`,
       `${origin}/v1/skim`,
+      `${origin}/v1/ping`,
     ]);
     const x402 = await handleExtract(new Request(`${origin}/.well-known/x402`), ctx);
     const xbody = (await x402.json()) as { resources: string[] };
@@ -482,6 +484,7 @@ describe('hangar listed board', () => {
       `${origin}/v1/blip`,
       `${origin}/v1/card`,
       `${origin}/v1/skim`,
+      `${origin}/v1/ping`,
     ]);
   });
 

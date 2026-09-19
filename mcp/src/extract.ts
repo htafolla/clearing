@@ -352,7 +352,7 @@ function openapiDoc(reqUrl: URL): Record<string, unknown> {
       },
       '/v1/ping': {
         get: {
-          summary: 'Unpaid find/ping. live = HTTP 402',
+          ...paid('Ping shop URLs. Target live = 402. $0.01', '0.010000'),
           parameters: [{ name: 'url', in: 'query', required: false, schema: { type: 'string' } }],
         },
       },
