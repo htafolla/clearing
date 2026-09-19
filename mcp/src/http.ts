@@ -29,6 +29,8 @@ export function isExtractPath(pathname: string): boolean {
     pathname === '/agents.md' ||
     pathname === '/llms.txt' ||
     pathname === '/.well-known/agent.json' ||
+    pathname === '/.well-known/agent-card.json' ||
+    pathname === '/.well-known/agent-registration.json' ||
     pathname === '/.well-known/agent-tools-verify.txt' ||
     pathname === '/.well-known/x402' ||
     pathname === '/openapi.json'

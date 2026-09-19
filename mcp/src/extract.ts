@@ -5,7 +5,7 @@ import { textHash } from './bytes.js';
 import { artifactId } from './cache.js';
 import { htmlToMarkdown } from './html.js';
 import { ClearingError } from './errors.js';
-import { assertPublicExtractTarget } from './origin.js';
+import { advertisedOrigin, assertPublicExtractTarget, RIPPEL_CLEARING } from './origin.js';
 import { hasNoAiSignal, isPathDisallowed } from './robots.js';
 import { buildQuote, buildRequirements, paymentHeaderFromRequest, quoteHeaders, type BazaarDiscovery } from './x402.js';
 import { buildCatalog, catalogShopUrls } from './listed.js';
@@ -23,7 +23,13 @@ export async function handleExtract(req: Request, ctx: ClearingContext): Promise
     return new Response(publicText(url.pathname), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
   if (url.pathname === '/.well-known/agent.json') {
-    return json(agentCard(ctx));
+    return json(agentCard(ctx, url));
+  }
+  if (url.pathname === '/.well-known/agent-card.json') {
+    return json(a2aAgentCard(url));
+  }
+  if (url.pathname === '/.well-known/agent-registration.json') {
+    return json(agentRegistration(url));
   }
   if (url.pathname === '/.well-known/agent-tools-verify.txt') {
     return agentToolsVerifyTxt(url);
@@ -289,7 +295,6 @@ async function x402WellKnown(reqUrl: URL, ctx: ClearingContext): Promise<Record<
 
 /** Cheap x402scan OpenAPI breadcrumb. Runtime 402 is authoritative. */
 function openapiDoc(reqUrl: URL): Record<string, unknown> {
-  const origin = `${reqUrl.protocol}//${reqUrl.host}`;
   const paid = (description: string, amount: string) => ({
     description,
     parameters: [] as unknown[],
@@ -307,9 +312,10 @@ function openapiDoc(reqUrl: URL): Record<string, unknown> {
     info: {
       title: 'Clearing',
       version: '0.1.0',
-      description: 'Receipted URL extract, GET witness, and ERC-8004 pin. Pay live x402 only.',
+      description:
+        'Hangar shops on clearing.rippel.ai. Extract, skim, witness, pin, card, blip. Pay live x402 only.',
     },
-    servers: [{ url: origin }],
+    servers: [{ url: advertisedOrigin(reqUrl) }],
     paths: {
       '/v1/extract': {
         get: {
@@ -332,6 +338,24 @@ function openapiDoc(reqUrl: URL): Record<string, unknown> {
           parameters: [
             { name: 'agentId', in: 'query', required: true, schema: { type: 'string' } },
             { name: 'registry', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+        },
+      },
+      '/v1/skim': {
+        get: {
+          ...paid('Bounded page card: title, hash, bytes, links', '0.010000'),
+          parameters: [{ name: 'url', in: 'query', required: true, schema: { type: 'string' } }],
+        },
+      },
+      '/v1/card': {
+        post: paid('Gasless ERC-8004 register; hangar pays ETH', '0.050000'),
+      },
+      '/v1/blip': {
+        get: {
+          ...paid('4.44s mill + Base NFT', '0.050000'),
+          parameters: [
+            { name: 'picture', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'brief', in: 'query', required: false, schema: { type: 'string' } },
           ],
         },
       },
@@ -363,18 +387,27 @@ retry: same paymentId, never re-sign
   }
 }
 
-function agentCard(ctx: ClearingContext): Record<string, unknown> {
+function hangarBase(reqUrl?: URL): string {
+  return advertisedOrigin(reqUrl) || RIPPEL_CLEARING;
+}
+
+function agentCard(ctx: ClearingContext, reqUrl?: URL): Record<string, unknown> {
+  const base = hangarBase(reqUrl);
   return {
     name: 'Clearing',
     description:
-      'Receipted URL extract + ERC-8004 pin + Blips hangar. Pay pin → listed. Pay live x402 only. Blip = 4.44s plant + Base NFT.',
+      'Receipted URL extract + skim + ERC-8004 pin/card + Blips hangar. Pay pin → listed. Pay live x402 only.',
     endpoints: {
-      http: `${ctx.config.extractBaseUrl}/v1/extract`,
-      pin: `${ctx.config.extractBaseUrl}/v1/pin`,
-      listed: `${ctx.config.extractBaseUrl}/v1/listed`,
-      online: `${ctx.config.extractBaseUrl}/v1/online`,
-      witness: `${ctx.config.extractBaseUrl}/v1/witness`,
-      blip: `${ctx.config.extractBaseUrl}/v1/blip`,
+      http: `${base}/v1/extract`,
+      skim: `${base}/v1/skim`,
+      pin: `${base}/v1/pin`,
+      card: `${base}/v1/card`,
+      listed: `${base}/v1/listed`,
+      online: `${base}/v1/online`,
+      catalog: `${base}/v1/catalog`,
+      witness: `${base}/v1/witness`,
+      blip: `${base}/v1/blip`,
+      locker: `${base}/v1/locker`,
     },
     payment: {
       chainId: ctx.config.chainId,
@@ -385,4 +418,61 @@ function agentCard(ctx: ClearingContext): Record<string, unknown> {
   };
 }
 
-export { agentCard };
+function a2aAgentCard(reqUrl: URL): Record<string, unknown> {
+  const base = hangarBase(reqUrl);
+  const skill = (id: string, name: string, description: string) => ({
+    id,
+    name,
+    description,
+    tags: ['x402', 'hangar'],
+  });
+  return {
+    protocolVersion: '0.3.0',
+    name: 'Clearing Hangar',
+    description: 'x402 shops on Base USDC: extract, skim, witness, pin, card, blip.',
+    url: base,
+    provider: { organization: 'Rippel', url: 'https://rippel.ai' },
+    version: '0.1.0',
+    capabilities: { streaming: false, pushNotifications: false },
+    defaultInputModes: ['text/plain', 'application/json'],
+    defaultOutputModes: ['application/json'],
+    skills: [
+      skill('extract', 'extract', 'Receipted URL markdown. GET /v1/extract?url='),
+      skill('skim', 'skim', 'Bounded JSON title/hash/links. GET /v1/skim?url='),
+      skill('witness', 'witness', 'Proof of fetch without body. GET /v1/witness?url='),
+      skill('pin', 'pin', 'Pin ERC-8004 card. GET /v1/pin?agentId='),
+      skill('card', 'card', 'Gasless 8004 register. POST /v1/card'),
+      skill('blip', 'blip', '4.44s mill + NFT. GET /v1/blip'),
+    ],
+  };
+}
+
+function agentRegistration(reqUrl: URL): Record<string, unknown> {
+  const base = hangarBase(reqUrl);
+  const registry = 'eip155:8453:0x8004A169FB4a3325136EB29Fa0Ceb6d2E539a432';
+  const svc = (name: string, path: string) => ({ name, endpoint: `${base}${path}` });
+  return {
+    type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+    name: 'Clearing Hangar',
+    description: 'x402 hangar. Catalog GET /v1/catalog. Ping a shop: unpaid GET expect 402.',
+    image: `${base}/llms.txt`,
+    services: [
+      svc('extract', '/v1/extract'),
+      svc('skim', '/v1/skim'),
+      svc('witness', '/v1/witness'),
+      svc('pin', '/v1/pin'),
+      svc('card', '/v1/card'),
+      svc('blip', '/v1/blip'),
+      svc('MCP', '/mcp'),
+      svc('web', '/v1/catalog'),
+    ],
+    x402Support: true,
+    active: true,
+    registrations: [
+      { agentId: 86556, agentRegistry: registry },
+      { agentId: 86666, agentRegistry: registry },
+    ],
+  };
+}
+
+export { agentCard, a2aAgentCard, agentRegistration };

@@ -118,6 +118,32 @@ describe('extract 402', () => {
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
   });
 
+  it('agent.json and A2A card advertise clearing.rippel.ai not railway.app', async () => {
+    const ctx = makeCtx();
+    const agent = await handleExtract(
+      new Request('https://clearing-production-9968.up.railway.app/.well-known/agent.json'),
+      ctx,
+    );
+    const card = (await agent.json()) as { endpoints: Record<string, string> };
+    expect(JSON.stringify(card)).not.toMatch(/railway\.app/);
+    expect(card.endpoints.http).toBe('https://clearing.rippel.ai/v1/extract');
+    expect(card.endpoints.skim).toBe('https://clearing.rippel.ai/v1/skim');
+    const a2a = await handleExtract(
+      new Request('https://clearing.rippel.ai/.well-known/agent-card.json'),
+      ctx,
+    );
+    expect(a2a.status).toBe(200);
+    const a2abody = (await a2a.json()) as { url: string; skills: unknown[] };
+    expect(a2abody.url).toBe('https://clearing.rippel.ai');
+    expect(a2abody.skills.length).toBeGreaterThan(3);
+    const reg = await handleExtract(
+      new Request('https://clearing.rippel.ai/.well-known/agent-registration.json'),
+      ctx,
+    );
+    const rbody = (await reg.json()) as { x402Support: boolean };
+    expect(rbody.x402Support).toBe(true);
+  });
+
   it('GET /.well-known/x402 includes ATC descriptor agentToolsVerify', async () => {
     const prevClearing = process.env.CLEARING_AGENT_TOOLS_VERIFY;
     const prevDescriptor = process.env.AGENT_TOOLS_VERIFY_DESCRIPTOR;

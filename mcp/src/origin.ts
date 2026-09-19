@@ -2,6 +2,21 @@ import { isIP } from 'node:net';
 import { ALWAYS_ALLOW_ORIGIN } from './types.js';
 import { fail } from './errors.js';
 
+/** Public hangar hostname. Never advertise railway.app. */
+export const RIPPEL_CLEARING = 'https://clearing.rippel.ai';
+
+export function advertisedOrigin(reqUrl?: URL): string {
+  const env = (process.env.CLEARING_PUBLIC_ORIGIN || '').trim().replace(/\/$/, '');
+  if (env) return env;
+  const host = (reqUrl?.host || '').toLowerCase();
+  if (host && !host.includes('railway.app') && host !== 'localhost' && !host.startsWith('127.')) {
+    return `${reqUrl!.protocol}//${reqUrl!.host}`.replace(/\/$/, '');
+  }
+  if (host.includes('railway.app')) return RIPPEL_CLEARING;
+  if (reqUrl?.host) return `${reqUrl.protocol}//${reqUrl.host}`.replace(/\/$/, '');
+  return RIPPEL_CLEARING;
+}
+
 export function parseHttpUrl(raw: string): URL {
   let url: URL;
   try {

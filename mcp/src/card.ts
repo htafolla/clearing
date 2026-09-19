@@ -2,7 +2,7 @@
  * Gasless ERC-8004 card mill. Agent pays USDC; hangar pays ETH and transfers the token.
  * POST JSON card (hosted here) or GET ?uri=. Nickel.
  */
-import { assertPublicExtractTarget } from './origin.js';
+import { advertisedOrigin, assertPublicExtractTarget, RIPPEL_CLEARING } from './origin.js';
 import { IDENTITY_REGISTRY, type HexAddress } from './types.js';
 import { isHexAddress, normalizeAddress } from './bytes.js';
 import {
@@ -149,14 +149,13 @@ function unwrapCard(parsed: unknown): unknown {
   return parsed;
 }
 
-function cardPublicUri(ctx: ClearingContext, reqUrl: URL, id: string): string {
-  const base = (ctx.config.extractBaseUrl || `${reqUrl.protocol}//${reqUrl.host}`).replace(/\/$/, '');
+function cardPublicUri(_ctx: ClearingContext, reqUrl: URL, id: string): string {
+  const base = advertisedOrigin(reqUrl) || RIPPEL_CLEARING;
   return `${base}/v1/card/${id}.json`;
 }
 
-function originOf(reqUrl: URL, ctx: ClearingContext): string {
-  if (reqUrl.host) return `${reqUrl.protocol}//${reqUrl.host}`;
-  return ctx.config.extractBaseUrl.replace(/\/$/, '');
+function originOf(reqUrl: URL, _ctx: ClearingContext): string {
+  return advertisedOrigin(reqUrl) || RIPPEL_CLEARING;
 }
 
 function cardDiscovery(): BazaarDiscovery {

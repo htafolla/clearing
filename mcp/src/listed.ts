@@ -7,6 +7,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { probeLiveHttps, type LiveShopCtx } from './live-shop.js';
+import { advertisedOrigin } from './origin.js';
 import type { HexAddress } from './types.js';
 
 export type ListedPin = {
@@ -281,8 +282,7 @@ export function catalogFromListed(rows: PublicListedRow[], origin = ''): Catalog
 }
 
 export function catalogOrigin(_ctx: ListedHttpCtx, reqUrl?: URL): string {
-  if (reqUrl?.host) return `${reqUrl.protocol}//${reqUrl.host}`;
-  return '';
+  return advertisedOrigin(reqUrl);
 }
 
 export async function buildCatalog(ctx: ListedHttpCtx, reqUrl?: URL): Promise<Catalog> {
