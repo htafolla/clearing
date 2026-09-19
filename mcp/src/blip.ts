@@ -383,25 +383,26 @@ async function chainTokensOf(ctx: ClearingContext, owner: HexAddress): Promise<C
   const balance = Number(BigInt(balanceRaw));
   if (!Number.isFinite(balance) || balance <= 0) return [];
   const n = Math.min(balance, MAX_OWNED_ENUMERATE);
-  const out: ChainOwned[] = [];
-  for (let i = 0; i < n; i += 1) {
-    const idRaw = await ethCall(ctx, nft, `${TOKEN_OF_OWNER_BY_INDEX_SEL}${padAddress(owner)}${padUint(i)}`);
-    if (!idRaw) continue;
-    const tokenId = Number(BigInt(idRaw));
-    if (!Number.isFinite(tokenId) || tokenId < 0) continue;
-    const [uriRaw, ownerRaw] = await Promise.all([
-      ethCall(ctx, nft, `${TOKEN_URI_SEL}${padUint(tokenId)}`),
-      ethCall(ctx, nft, `${OWNER_OF_SEL}${padUint(tokenId)}`),
-    ]);
-    const onchainOwner = ownerRaw ? addressFromWord(ownerRaw) : undefined;
-    if (onchainOwner && onchainOwner !== owner) continue;
-    out.push({
-      tokenId,
-      ownerWallet: onchainOwner ?? owner,
-      tokenURI: uriRaw ? decodeAbiString(uriRaw) : '',
-    });
-  }
-  return out;
+  const rows = await Promise.all(
+    Array.from({ length: n }, async (_, i) => {
+      const idRaw = await ethCall(ctx, nft, `${TOKEN_OF_OWNER_BY_INDEX_SEL}${padAddress(owner)}${padUint(i)}`);
+      if (!idRaw) return null;
+      const tokenId = Number(BigInt(idRaw));
+      if (!Number.isFinite(tokenId) || tokenId < 0) return null;
+      const [uriRaw, ownerRaw] = await Promise.all([
+        ethCall(ctx, nft, `${TOKEN_URI_SEL}${padUint(tokenId)}`),
+        ethCall(ctx, nft, `${OWNER_OF_SEL}${padUint(tokenId)}`),
+      ]);
+      const onchainOwner = ownerRaw ? addressFromWord(ownerRaw) : undefined;
+      if (onchainOwner && onchainOwner !== owner) return null;
+      return {
+        tokenId,
+        ownerWallet: onchainOwner ?? owner,
+        tokenURI: uriRaw ? decodeAbiString(uriRaw) : '',
+      } satisfies ChainOwned;
+    }),
+  );
+  return rows.filter((row): row is ChainOwned => row !== null);
 }
 
 async function ethCall(ctx: ClearingContext, to: HexAddress, data: string): Promise<string | undefined> {
