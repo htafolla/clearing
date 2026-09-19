@@ -7,6 +7,7 @@ import { handleWitness } from './witness.js';
 import { handleSkim } from './skim.js';
 import { handleCard } from './card.js';
 import { handlePing } from './ping.js';
+import { handleListings } from './listings.js';
 import type { ClearingContext } from './context.js';
 
 export function isExtractPath(pathname: string): boolean {
@@ -29,6 +30,8 @@ export function isExtractPath(pathname: string): boolean {
     pathname === '/v1/locker' ||
     pathname === '/v1/ping' ||
     pathname.startsWith('/v1/ping') ||
+    pathname === '/v1/listings' ||
+    pathname.startsWith('/v1/listings') ||
     pathname === '/agents.md' ||
     pathname === '/llms.txt' ||
     pathname === '/.well-known/agent.json' ||
@@ -43,6 +46,8 @@ export function isExtractPath(pathname: string): boolean {
 export async function handleHangar(req: Request, ctx: ClearingContext): Promise<Response> {
   const ping = await handlePing(req, ctx);
   if (ping) return ping;
+  const listings = await handleListings(req, ctx);
+  if (listings) return listings;
   const listed = await handleListed(req, ctx);
   if (listed) return listed;
   const pin = await handlePin(req, ctx);

@@ -92,7 +92,7 @@ export async function handlePin(req: Request, ctx: ClearingContext): Promise<Res
   });
 }
 
-async function ownerOf(ctx: ClearingContext, registry: string, agentId: number): Promise<string> {
+export async function ownerOf(ctx: ClearingContext, registry: string, agentId: number): Promise<string> {
   const data = TRANSFER_OWNER + agentId.toString(16).padStart(64, '0');
   const result = await ethCall(ctx, registry, data);
   if (!result || result === '0x' || /^0x0+$/.test(result)) {
@@ -101,7 +101,7 @@ async function ownerOf(ctx: ClearingContext, registry: string, agentId: number):
   return `0x${result.slice(-40)}`;
 }
 
-async function tokenUri(ctx: ClearingContext, registry: string, agentId: number): Promise<string> {
+export async function tokenUri(ctx: ClearingContext, registry: string, agentId: number): Promise<string> {
   const data = TOKEN_URI + agentId.toString(16).padStart(64, '0');
   const result = await ethCall(ctx, registry, data);
   return decodeAbiString(result);
