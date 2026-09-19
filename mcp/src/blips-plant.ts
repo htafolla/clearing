@@ -20,6 +20,18 @@ export type BlipPlantInput = {
   mintIndex?: number;
 };
 
+export type BlipMillCard = {
+  seed?: string;
+  engine?: string;
+  look?: string;
+  organ?: string;
+  genre?: string;
+  scenePair?: string;
+  sceneHex?: string;
+  stillPlate?: string;
+  motionId?: string;
+};
+
 export type BlipPlantResult = {
   ok: boolean;
   videoUrl?: string;
@@ -28,8 +40,32 @@ export type BlipPlantResult = {
   durationSec: number;
   picture: string;
   plantVersion: string;
+  mill?: BlipMillCard;
   reason?: string;
 };
+
+export function millCardFromReceipt(receipt: unknown): BlipMillCard | undefined {
+  if (!receipt || typeof receipt !== 'object') return undefined;
+  const r = receipt as Record<string, unknown>;
+  const pick = (k: string): string | undefined => {
+    const v = r[k];
+    if (v == null) return undefined;
+    const s = String(v).trim();
+    return s || undefined;
+  };
+  const mill: BlipMillCard = {
+    seed: pick('seed') ?? pick('seedHex'),
+    engine: pick('engine'),
+    look: pick('look'),
+    organ: pick('organ'),
+    genre: pick('genre'),
+    scenePair: pick('pair') ?? pick('scenePair'),
+    sceneHex: pick('hex') ?? pick('sceneHex'),
+    stillPlate: pick('stillPlate'),
+    motionId: pick('motionId'),
+  };
+  return Object.values(mill).some(Boolean) ? mill : undefined;
+}
 
 export interface BlipPlant {
   render(input: BlipPlantInput): Promise<BlipPlantResult>;
@@ -116,6 +152,7 @@ export class HttpBlipPlant implements BlipPlant {
       durationSec: Number(json.durationSec ?? BLIP_DURATION_SEC),
       picture: String(json.picture ?? input.picture),
       plantVersion: String(json.plantVersion ?? BLIP_PLANT_VERSION),
+      mill: millCardFromReceipt(json.receipt) ?? millCardFromReceipt(json),
     };
   }
 }

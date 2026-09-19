@@ -29,6 +29,8 @@ export type ClearingConfig = {
   extractPriceUsd: number;
   extractPriceJsUsd: number;
   extractBaseUrl: string;
+  /** Public hangar origin for NFT tokenURI. Never a Railway hostname. */
+  publicUrl?: string;
   extractPort: number;
   discoverMinSettlements7d: number;
   probeTimeoutMs: number;

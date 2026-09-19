@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { handleBlip } from '../mcp/src/blip.js';
 import { handleHangar } from '../mcp/src/http.js';
 import { handleTool } from '../mcp/src/tools.js';
-import { FakeBlipPlant } from '../mcp/src/blips-plant.js';
+import { FakeBlipPlant, millCardFromReceipt } from '../mcp/src/blips-plant.js';
 import { MemoryBlipsMinter } from '../mcp/src/blips-nft.js';
 import { blipPriceCents } from '../mcp/src/blips-escalator.js';
 import { MemoryFacilitator } from '../mcp/src/facilitator.js';
@@ -317,7 +317,43 @@ describe('hangar skill blip', () => {
     expect(body.animation_url).toMatch(/\.mp4$/);
     expect(body.attributes.some((a) => a.trait_type === 'durationSec' && a.value === 4.44)).toBe(true);
     expect(body.attributes.some((a) => a.trait_type === 'escalator' && a.value === 'quadratic-ease-in')).toBe(true);
+    expect(body.attributes.some((a) => a.trait_type === 'brief')).toBe(true);
+    expect(body.attributes.some((a) => a.trait_type === 'picture')).toBe(true);
+    expect(body.attributes.some((a) => a.trait_type === 'motion')).toBe(true);
+    expect(body.attributes.some((a) => a.trait_type === 'mill')).toBe(true);
     expect(body.receipt.mintTx).toMatch(/^0x/);
+    expect(String((body as { description?: string }).description)).toMatch(/night alley still/);
+  });
+
+  it('tokenURI and traits use clearing.rippel.ai, never Railway', async () => {
+    const ctx = makeCtx(
+      {},
+      {
+        config: {
+          extractBaseUrl: 'https://clearing-production-9968.up.railway.app',
+          publicUrl: 'https://clearing-production-9968.up.railway.app',
+        },
+      },
+    );
+    const paid = await pay(blipUrl('motion:destination', 'neon fuse driving toward the horizon'), ctx);
+    expect(paid.status).toBe(200);
+    const mint = (await paid.json()) as { tokenURI?: string };
+    expect(mint.tokenURI).toBe('https://clearing.rippel.ai/v1/blip/metadata/0');
+    const res = await handleHangar(new Request('https://api.clearing.dev/v1/blip/metadata/0'), ctx);
+    const body = (await res.json()) as {
+      description: string;
+      animation_url: string;
+      external_url?: string;
+      attributes: Array<{ trait_type: string; value: unknown }>;
+    };
+    expect(body.animation_url).not.toMatch(/up\.railway\.app/);
+    expect(body.external_url ?? '').not.toMatch(/up\.railway\.app/);
+    expect(body.description).toMatch(/neon fuse driving toward the horizon/);
+    expect(body.attributes.some((a) => a.trait_type === 'brief' && a.value === 'neon fuse driving toward the horizon')).toBe(
+      true,
+    );
+    expect(body.attributes.some((a) => a.trait_type === 'motion' && a.value === 'destination')).toBe(true);
+    expect(JSON.stringify(body)).not.toMatch(/up\.railway\.app/);
   });
 
   it('MCP blip wrapper quotes the hangar 402 (dry_run, no charge)', async () => {
@@ -331,5 +367,26 @@ describe('hangar skill blip', () => {
     expect(result.status).toBe(402);
     expect(result.quote?.accepts?.[0]?.extra?.signer).toBe('zigzag');
     expect((ctx.facilitator as MemoryFacilitator).debitCount()).toBe(0);
+  });
+
+  it('millCardFromReceipt copies factory receipt into NFT mill card', () => {
+    const mill = millCardFromReceipt({
+      seed: '0xdeadbeef',
+      engine: 'scene-headless',
+      look: 'destination-blip',
+      organ: 'destination',
+      genre: 'destination',
+      pair: 'ember',
+      hex: '#ED681F',
+      motionId: 'destination',
+    });
+    expect(mill).toMatchObject({
+      seed: '0xdeadbeef',
+      engine: 'scene-headless',
+      organ: 'destination',
+      scenePair: 'ember',
+      sceneHex: '#ED681F',
+      motionId: 'destination',
+    });
   });
 });
