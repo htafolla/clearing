@@ -22,6 +22,7 @@ describe('Blips hangar honesty', () => {
     expect(docs).toMatch(/4\.0\.15/);
     expect(docs).toMatch(/d466f1a91/);
     expect(docs).toMatch(/kapow/);
+    expect(docs).toMatch(/destination/);
     expect(docs).toMatch(/npx @0xray\/foundry blip render/);
     expect(docs).toMatch(/BLIPS_FOUNDRY_URL/);
     expect(docs).toMatch(/settled paid/);

@@ -31,7 +31,7 @@ No ZigZag HTTP rail. No `:8789`. Loopback URLs are ignored; OWS signs in-process
 4. Wait up to **3 minutes**. Retry with the **same paymentId**. Never re-sign.
 5. `receipts` — report `tokenId`, `videoUrl`, `mintTx`. NFT lands on the OWS address.
 
-`picture` is `still` or `motion:<orb|swirl|snap|waves|spark|kapow>`.
+`picture` is `still` or `motion:<orb|swirl|snap|waves|spark|kapow|destination>`.
 
 ## Rules
 

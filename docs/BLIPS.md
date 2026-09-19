@@ -2,7 +2,7 @@
 
 A friend would hear: pay a few cents USDC on Base at the hangar, get one 4.44s Blip back — factory already exists; this ticket wires the shop.
 
-Factory plant `blip` is a sibling to `mill` + `sound` (xray `4.0.15` / `d466f1a91`). This repo is the hangar shop. No Dist. No marketplace v0. `kapow` is a live design opt (`motion:kapow`).
+Factory plant `blip` is a sibling to `mill` + `sound` (xray `4.0.15` / `d466f1a91`). This repo is the hangar shop. No Dist. No marketplace v0. `kapow` is a live design opt (`motion:kapow`). `destination` is a live scene-mixer opt (`motion:destination`).
 
 ## Route
 
