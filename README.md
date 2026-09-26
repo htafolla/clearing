@@ -25,3 +25,18 @@ npm test
 ```
 
 HTTP MCP hostnames are not live. Do not `railway link` usmail-ai. Wear is `npm i 0xray` (garment). Do not mill-plant. Product MCP is `clearing`, never `xray-clearing`.
+
+## Selling without zigzag (CDP facilitator)
+
+An outside seller can settle buyer payments with Coinbase’s public x402 facilitator. No `CLEARING_SIGNER`, `CLEARING_RAIL_TOKEN`, or `CLEARING_ZIGZAG_URL`.
+
+On a hosted boot (`RAILWAY_ENVIRONMENT` set, or `NODE_ENV=production`):
+
+```bash
+CLEARING_FACILITATOR=cdp
+CDP_API_KEY_ID=          # seller’s own CDP secret API key id
+CDP_API_KEY_SECRET=      # seller’s own CDP secret API key (Ed25519 or EC PEM)
+CLEARING_PAY_TO=         # seller’s Base address; USDC lands here
+```
+
+Settlement is Base (`eip155:8453`) USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`. Buyers sign EIP-3009 with domain name `USD Coin` and version `2`. The paid request URL must be public `https` and must not be a `*.railway.app` hostname (Bazaar catalog rule), so attach a custom domain. Each seller brings their own CDP account and keys. This repo does not hold them.

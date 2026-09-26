@@ -7,6 +7,7 @@ import {
   CDP_X402_HOST,
   cdpBearerJwt,
   hasCdpKeys,
+  missingCdpKeyEnv,
 } from './cdp-auth.js';
 import { decodePayload, httpGetBazaar, requirementsMatch } from './x402.js';
 import { USDC_EIP712_NAME, USDC_EIP712_VERSION } from './types.js';
@@ -338,6 +339,7 @@ export class ZigzagFacilitator implements Facilitator {
 export function createFacilitator(
   kind: 'memory' | 'cdp' | 'none' | 'zigzag',
   allowFake: boolean,
+  opts: { fetchFn?: FetchFn } = {},
 ): Facilitator {
   if (kind === 'zigzag') {
     const base = process.env.CLEARING_ZIGZAG_URL || process.env.CLEARING_SIGNER_URL || '';
@@ -350,8 +352,11 @@ export function createFacilitator(
     return new ZigzagFacilitator(settleUrl);
   }
   if (kind === 'cdp') {
-    if (!hasCdpKeys()) fail('facilitator_missing', 'CDP_API_KEY_ID and CDP_API_KEY_SECRET required', 503);
-    return new CdpFacilitator();
+    const missing = missingCdpKeyEnv();
+    if (missing.length > 0) {
+      fail('facilitator_missing', `${missing.join(' and ')} required`, 503);
+    }
+    return new CdpFacilitator({ fetchFn: opts.fetchFn });
   }
   if (kind === 'memory') {
     if (!allowFake) fail('facilitator_missing', 'memory facilitator is disabled', 503);
