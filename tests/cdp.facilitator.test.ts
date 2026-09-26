@@ -6,6 +6,7 @@ import {
   MemoryFacilitator,
   bazaarResourceUrl,
   cdpCatalogResource,
+  createFacilitator,
   pingFacilitator,
   toCdpSettleBody,
 } from '../mcp/src/facilitator.js';
@@ -158,6 +159,63 @@ describe('CDP facilitator', () => {
     expect(out.ok).toBe(false);
     expect(out.error).toMatch(/bad sig/);
     expect(urls).toEqual(['https://api.cdp.coinbase.com/platform/v2/x402/verify']);
+  });
+
+  it('seller createFacilitator(cdp) settles on a mock and never calls zigzag', async () => {
+    const { id, secret } = ed25519Secret();
+    const prevId = process.env.CDP_API_KEY_ID;
+    const prevSecret = process.env.CDP_API_KEY_SECRET;
+    const urls: string[] = [];
+    try {
+      process.env.CDP_API_KEY_ID = id;
+      process.env.CDP_API_KEY_SECRET = secret;
+      const rail = createFacilitator('cdp', false, {
+        fetchFn: async (input) => {
+          const u = String(input);
+          urls.push(u);
+          expect(u.includes('zigzag')).toBe(false);
+          if (u.endsWith('/x402/verify')) {
+            return new Response(JSON.stringify({ isValid: true }), { status: 200 });
+          }
+          if (u.endsWith('/x402/settle')) {
+            return new Response(JSON.stringify({ success: true, transaction: TX }), { status: 200 });
+          }
+          return new Response('no', { status: 404 });
+        },
+      });
+      const out = await rail.settle(paidHeader(), expectedShop());
+      expect(out.ok).toBe(true);
+      expect(out.txHash).toBe(TX);
+      expect(urls).toEqual([
+        'https://api.cdp.coinbase.com/platform/v2/x402/verify',
+        'https://api.cdp.coinbase.com/platform/v2/x402/settle',
+      ]);
+    } finally {
+      if (prevId === undefined) delete process.env.CDP_API_KEY_ID;
+      else process.env.CDP_API_KEY_ID = prevId;
+      if (prevSecret === undefined) delete process.env.CDP_API_KEY_SECRET;
+      else process.env.CDP_API_KEY_SECRET = prevSecret;
+    }
+  });
+
+  it('createFacilitator cdp names only the missing key', () => {
+    const prevId = process.env.CDP_API_KEY_ID;
+    const prevSecret = process.env.CDP_API_KEY_SECRET;
+    try {
+      delete process.env.CDP_API_KEY_ID;
+      delete process.env.CDP_API_KEY_SECRET;
+      expect(() => createFacilitator('cdp', false)).toThrow('CDP_API_KEY_ID and CDP_API_KEY_SECRET required');
+      process.env.CDP_API_KEY_ID = 'seller-key-id';
+      expect(() => createFacilitator('cdp', false)).toThrow('CDP_API_KEY_SECRET required');
+      delete process.env.CDP_API_KEY_ID;
+      process.env.CDP_API_KEY_SECRET = 'seller-key-secret';
+      expect(() => createFacilitator('cdp', false)).toThrow('CDP_API_KEY_ID required');
+    } finally {
+      if (prevId === undefined) delete process.env.CDP_API_KEY_ID;
+      else process.env.CDP_API_KEY_ID = prevId;
+      if (prevSecret === undefined) delete process.env.CDP_API_KEY_SECRET;
+      else process.env.CDP_API_KEY_SECRET = prevSecret;
+    }
   });
 
   it('pingFacilitator uses CDP when keys exist', () => {

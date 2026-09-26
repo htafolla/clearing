@@ -10,8 +10,15 @@ export const CDP_SETTLE_URL = `https://${CDP_X402_HOST}${CDP_SETTLE_PATH}`;
 export const CDP_VERIFY_URL = `https://${CDP_X402_HOST}${CDP_VERIFY_PATH}`;
 export const CDP_SEARCH_URL = `https://${CDP_X402_HOST}/platform/v2/x402/discovery/search`;
 
+export function missingCdpKeyEnv(): Array<'CDP_API_KEY_ID' | 'CDP_API_KEY_SECRET'> {
+  const missing: Array<'CDP_API_KEY_ID' | 'CDP_API_KEY_SECRET'> = [];
+  if (!process.env.CDP_API_KEY_ID?.trim()) missing.push('CDP_API_KEY_ID');
+  if (!process.env.CDP_API_KEY_SECRET?.trim()) missing.push('CDP_API_KEY_SECRET');
+  return missing;
+}
+
 export function hasCdpKeys(): boolean {
-  return Boolean(process.env.CDP_API_KEY_ID?.trim() && process.env.CDP_API_KEY_SECRET?.trim());
+  return missingCdpKeyEnv().length === 0;
 }
 
 export function cdpBearerJwt(opts: {
