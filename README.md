@@ -39,4 +39,4 @@ CDP_API_KEY_SECRET=      # seller’s own CDP secret API key (Ed25519 or EC PEM)
 CLEARING_PAY_TO=         # seller’s Base address; USDC lands here
 ```
 
-Settlement is Base (`eip155:8453`) USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`. Buyers sign EIP-3009 with domain name `USD Coin` and version `2`. The paid request URL must be public `https` and must not be a `*.railway.app` hostname (Bazaar catalog rule), so attach a custom domain. Each seller brings their own CDP account and keys. This repo does not hold them.
+Settlement is Base (`eip155:8453`) USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`. Buyers sign EIP-3009 with domain name `USD Coin` and version `2`. The paid request URL must be public `https`. Clearing’s own filter in `mcp/src/facilitator.ts` skips `*.railway.app` hostnames and `/v1/ping`, so attach a custom domain. Each seller brings their own CDP account and keys. This repo does not hold them.
