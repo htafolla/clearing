@@ -5,6 +5,8 @@
  * Stdio remains mcp/src/server.ts. Not an xray-* server.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createContext } from './context.js';
 import { dispatch, isExtractPath } from './http.js';
 import { handleTool, TOOL_DEFINITIONS } from './tools.js';
@@ -12,6 +14,26 @@ import { assertProductionRail } from './production-rail.js';
 import { hydrateSettlementsFromChain } from './settlement-chain.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
+
+/** Public liveness body. Facilitator is the configured kind only — never a key id or secret. */
+export function healthBody(config: { signer: string; facilitator: string }): {
+  status: 'healthy';
+  server: 'clearing';
+  version: '0.1.0';
+  tools: number;
+  signer: string;
+  facilitator: string;
+} {
+  return {
+    status: 'healthy',
+    server: 'clearing',
+    version: '0.1.0',
+    tools: TOOL_DEFINITIONS.length,
+    signer: config.signer,
+    facilitator: config.facilitator,
+  };
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -106,13 +128,7 @@ async function main(): Promise<void> {
         return;
       }
       if (req.method === 'GET' && (url === '/' || url === '/health')) {
-        sendJson(res, 200, {
-          status: 'healthy',
-          server: 'clearing',
-          version: '0.1.0',
-          tools: TOOL_DEFINITIONS.length,
-          signer: boot.config.signer,
-        });
+        sendJson(res, 200, healthBody(boot.config));
         return;
       }
       if (req.method === 'GET' && url === '/mcp') {
@@ -158,4 +174,8 @@ async function main(): Promise<void> {
     });
 }
 
-void main();
+const thisFile = fileURLToPath(import.meta.url);
+const invoked = process.argv[1] ? resolve(process.argv[1]) : '';
+if (invoked && thisFile === invoked) {
+  void main();
+}

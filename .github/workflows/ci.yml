@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  CI:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # npm 9 cannot npm ci this lockfile (vendored 0xray). Node 20.0–20.9 ships npm 9.
+      - name: Require npm 10+
+        run: npm install -g npm@10
+      - run: npm ci
+      - run: npm test
+      - run: npx tsc --noEmit
